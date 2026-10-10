@@ -2,6 +2,11 @@
 // As lacunas {0}, {1}... (e as nomeadas, como {sala}) precisam aparecer na tradução, em qualquer ordem.
 // Chave ausente = o texto fica em PT. `npm run i18n:check` lista os textos sem tradução e as chaves que sobraram.
 export const EN: Readonly<Record<string, string>> = {
+  // client/src/art/character/appearance.ts
+  "Não combina com este cabelo": "Does not go with this hair",
+  "Não combina com o boné ou o gorro": "Does not go with the cap or beanie",
+  "Não combina com o laço": "Does not go with the bow",
+
   // client/src/main.ts
   "Escritório virtual em pixel art que mostra, em tempo real, o que seus agentes do Claude Code estão fazendo.": "Virtual pixel art office that shows, in real time, what your Claude Code agents are doing.",
 
@@ -83,6 +88,7 @@ export const EN: Readonly<Record<string, string>> = {
   "Por fazer": "Stubble",
   "Bigode": "Mustache",
   "Cavanhaque": "Goatee",
+  "Maria-chiquinha": "Pigtails",
 
   // client/src/ui/composer-model.ts
   "Para mandar mensagens daqui: npm run mod:install (plugin habblaud-mensagens)": "To send messages from here: npm run mod:install (habblaud-mensagens plugin)",
@@ -157,6 +163,8 @@ export const EN: Readonly<Record<string, string>> = {
   ", ainda esperando": ", still waiting",
   "Hoje": "Today",
   "Ontem": "Yesterday",
+  "{0}º": "#{0}",
+  "{0} em {1}": "{0} in {1}",
 
   // client/src/ui/daystats.ts
   "Tempo de agentes é a soma de todos eles: dois agentes trabalhando por 1 hora contam 2 horas. ": "Agent time is the sum across all agents: two agents working for 1 hour count as 2 hours. ",
@@ -209,6 +217,7 @@ export const EN: Readonly<Record<string, string>> = {
   "Cada conta na cor dela, com a fatia do tempo de trabalho do dia": "Each account in its color, with its share of the day's work time",
   "Nenhuma conta com tempo neste dia.": "No account with time on this day.",
   "só tokens": "tokens only",
+  "em {0}": "in {0}",
 
   // client/src/ui/drawer.ts
   "Copiado!": "Copied!",
@@ -431,6 +440,7 @@ export const EN: Readonly<Record<string, string>> = {
   "Ainda aberta: abre o terminal ao vivo do agente": "Still open: opens the agent's live terminal",
   "Encerrada: abre a conversa no terminal": "Ended: opens the conversation in the terminal",
   "última atividade {0} às {1}": "last activity {0} at {1}",
+  "{0} de {1}": "{0} of {1}",
 
   // client/src/ui/hovertip.ts
   "há {0}": "{0} ago",

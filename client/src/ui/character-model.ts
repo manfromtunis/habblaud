@@ -80,7 +80,7 @@ export const EDITOR_GROUPS: readonly { title: string; rows: readonly EditorRow[]
 const STYLE_LABELS: Partial<Record<PartKey, Readonly<Record<string, string>>>> = {
   hairStyle: {
     short: tr('Curto'), buzz: tr('Raspado'), spiky: tr('Espetado'), side_part: tr('Repartido'), curly: tr('Cacheado'), afro: tr('Black power'),
-    bob: tr('Chanel'), long: tr('Longo'), ponytail: tr('Rabo de cavalo'), bun: tr('Coque'), pigtails: 'Maria-chiquinha', mohawk: tr('Moicano'),
+    bob: tr('Chanel'), long: tr('Longo'), ponytail: tr('Rabo de cavalo'), bun: tr('Coque'), pigtails: tr('Maria-chiquinha'), mohawk: tr('Moicano'),
     bald: tr('Careca'), wavy: tr('Ondulado'),
   },
   topStyle: {

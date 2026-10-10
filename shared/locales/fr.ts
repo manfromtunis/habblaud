@@ -2,6 +2,11 @@
 // As lacunas {0}, {1}... (e as nomeadas, como {sala}) precisam aparecer na tradução, em qualquer ordem.
 // Chave ausente = o texto fica em PT. `npm run i18n:check` lista os textos sem tradução e as chaves que sobraram.
 export const FR: Readonly<Record<string, string>> = {
+  // client/src/art/character/appearance.ts
+  "Não combina com este cabelo": "Ne va pas avec cette coiffure",
+  "Não combina com o boné ou o gorro": "Ne va pas avec la casquette ou le bonnet",
+  "Não combina com o laço": "Ne va pas avec le nœud",
+
   // client/src/main.ts
   "Escritório virtual em pixel art que mostra, em tempo real, o que seus agentes do Claude Code estão fazendo.": "Bureau virtuel en pixel art qui montre, en temps réel, ce que font vos agents Claude Code.",
 
@@ -83,6 +88,7 @@ export const FR: Readonly<Record<string, string>> = {
   "Por fazer": "Barbe de trois jours",
   "Bigode": "Moustache",
   "Cavanhaque": "Bouc",
+  "Maria-chiquinha": "Couettes",
 
   // client/src/ui/composer-model.ts
   "Para mandar mensagens daqui: npm run mod:install (plugin habblaud-mensagens)": "Pour envoyer des messages d'ici : npm run mod:install (plugin habblaud-mensagens)",
@@ -157,6 +163,8 @@ export const FR: Readonly<Record<string, string>> = {
   ", ainda esperando": ", attend toujours",
   "Hoje": "Aujourd'hui",
   "Ontem": "Hier",
+  "{0}º": "n° {0}",
+  "{0} em {1}": "{0} dans {1}",
 
   // client/src/ui/daystats.ts
   "Tempo de agentes é a soma de todos eles: dois agentes trabalhando por 1 hora contam 2 horas. ": "Le temps d'agents est la somme de tous les agents : deux agents qui travaillent 1 heure comptent pour 2 heures. ",
@@ -209,6 +217,7 @@ export const FR: Readonly<Record<string, string>> = {
   "Cada conta na cor dela, com a fatia do tempo de trabalho do dia": "Chaque compte dans sa couleur, avec sa part du temps de travail de la journée",
   "Nenhuma conta com tempo neste dia.": "Aucun compte avec du temps ce jour-là.",
   "só tokens": "tokens uniquement",
+  "em {0}": "dans {0}",
 
   // client/src/ui/drawer.ts
   "Copiado!": "Copié !",
@@ -431,6 +440,7 @@ export const FR: Readonly<Record<string, string>> = {
   "Ainda aberta: abre o terminal ao vivo do agente": "Encore ouverte : ouvre le terminal en direct de l'agent",
   "Encerrada: abre a conversa no terminal": "Terminée : ouvre la conversation dans le terminal",
   "última atividade {0} às {1}": "dernière activité {0} à {1}",
+  "{0} de {1}": "{0} sur {1}",
 
   // client/src/ui/hovertip.ts
   "há {0}": "il y a {0}",
