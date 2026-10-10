@@ -67,7 +67,10 @@ function detect(): Locale {
     if (n) return n;
   }
   try {
-    return normalizeLocale(Intl.DateTimeFormat().resolvedOptions().locale) ?? 'pt-BR';
+    // Sem LANG (container, serviço) ou com LANG=C, o Intl do Node responde en-US: isso não é escolher inglês.
+    // Inglês no servidor só com en_* no LANG/LC_ALL ou HABBLAUD_LANG=en; senão continua em PT.
+    const n = normalizeLocale(Intl.DateTimeFormat().resolvedOptions().locale);
+    return n && n !== 'en' ? n : 'pt-BR';
   } catch {
     return 'pt-BR';
   }
