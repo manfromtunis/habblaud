@@ -4,15 +4,16 @@
 // por spans criados com createElement/textContent: nenhum texto do transcript passa por innerHTML.
 import type { TerminalEntry } from '../../../shared/types';
 import type { TerminalItem } from './terminal';
+import { i18n } from '../../../shared/i18n';
 
 // ---------------------------------------------------------------- filtro
 
 export type TerminalFilter = 'all' | 'prompts' | 'noTools';
 
 export const TERMINAL_FILTERS: readonly [TerminalFilter, string, string][] = [
-  ['all', 'Tudo', 'Toda a conversa'],
-  ['prompts', 'Só prompts', 'Só os seus prompts e as respostas finais do agente'],
-  ['noTools', 'Sem ferramentas', 'Esconde as ferramentas e os resultados'],
+  ['all', i18n('Tudo'), i18n('Toda a conversa')],
+  ['prompts', i18n('Só prompts'), i18n('Só os seus prompts e as respostas finais do agente')],
+  ['noTools', i18n('Sem ferramentas'), i18n('Esconde as ferramentas e os resultados')],
 ];
 
 /**

@@ -4,6 +4,7 @@ import { PART_KEYS, type AppearanceParts, type PartKey } from '../../../shared/a
 import { isDemoId } from '../../../shared/timeline';
 import type { AgentInfo } from '../../../shared/types';
 import type { Appearance } from '../art/api';
+import { i18n } from '../../../shared/i18n';
 
 export interface EditGate {
   /** O agente ainda está no escritório. */
@@ -41,57 +42,57 @@ export interface EditorRow {
 }
 
 export const EDITOR_GROUPS: readonly { title: string; rows: readonly EditorRow[] }[] = [
-  { title: 'Pele', rows: [{ key: 'skin', label: 'Tom', kind: 'color' }] },
+  { title: i18n('Pele'), rows: [{ key: 'skin', label: i18n('Tom'), kind: 'color' }] },
   {
-    title: 'Cabelo',
+    title: i18n('Cabelo'),
     rows: [
-      { key: 'hairStyle', label: 'Estilo', kind: 'style' },
-      { key: 'hair', label: 'Cor', kind: 'color' },
+      { key: 'hairStyle', label: i18n('Estilo'), kind: 'style' },
+      { key: 'hair', label: i18n('Cor'), kind: 'color' },
     ],
   },
-  { title: 'Barba', rows: [{ key: 'facialHair', label: 'Estilo', kind: 'style' }] },
-  { title: 'Olhos', rows: [{ key: 'eyes', label: 'Cor', kind: 'color' }] },
+  { title: i18n('Barba'), rows: [{ key: 'facialHair', label: i18n('Estilo'), kind: 'style' }] },
+  { title: i18n('Olhos'), rows: [{ key: 'eyes', label: i18n('Cor'), kind: 'color' }] },
   {
-    title: 'Parte de cima',
+    title: i18n('Parte de cima'),
     rows: [
-      { key: 'topStyle', label: 'Estilo', kind: 'style' },
-      { key: 'top', label: 'Cor', kind: 'color' },
-      { key: 'topAccent', label: 'Detalhe', kind: 'color' },
+      { key: 'topStyle', label: i18n('Estilo'), kind: 'style' },
+      { key: 'top', label: i18n('Cor'), kind: 'color' },
+      { key: 'topAccent', label: i18n('Detalhe'), kind: 'color' },
     ],
   },
   {
-    title: 'Parte de baixo',
+    title: i18n('Parte de baixo'),
     rows: [
-      { key: 'bottomStyle', label: 'Estilo', kind: 'style' },
-      { key: 'bottom', label: 'Cor', kind: 'color' },
+      { key: 'bottomStyle', label: i18n('Estilo'), kind: 'style' },
+      { key: 'bottom', label: i18n('Cor'), kind: 'color' },
     ],
   },
-  { title: 'Sapatos', rows: [{ key: 'shoes', label: 'Cor', kind: 'color' }] },
+  { title: i18n('Sapatos'), rows: [{ key: 'shoes', label: i18n('Cor'), kind: 'color' }] },
   {
-    title: 'Acessório',
+    title: i18n('Acessório'),
     rows: [
-      { key: 'accessory', label: 'Tipo', kind: 'style' },
-      { key: 'accessoryColor', label: 'Cor', kind: 'color' },
+      { key: 'accessory', label: i18n('Tipo'), kind: 'style' },
+      { key: 'accessoryColor', label: i18n('Cor'), kind: 'color' },
     ],
   },
 ];
 
 const STYLE_LABELS: Partial<Record<PartKey, Readonly<Record<string, string>>>> = {
   hairStyle: {
-    short: 'Curto', buzz: 'Raspado', spiky: 'Espetado', side_part: 'Repartido', curly: 'Cacheado', afro: 'Black power',
-    bob: 'Chanel', long: 'Longo', ponytail: 'Rabo de cavalo', bun: 'Coque', pigtails: 'Maria-chiquinha', mohawk: 'Moicano',
-    bald: 'Careca', wavy: 'Ondulado',
+    short: i18n('Curto'), buzz: i18n('Raspado'), spiky: i18n('Espetado'), side_part: i18n('Repartido'), curly: i18n('Cacheado'), afro: i18n('Black power'),
+    bob: i18n('Chanel'), long: i18n('Longo'), ponytail: i18n('Rabo de cavalo'), bun: i18n('Coque'), pigtails: i18n('Maria-chiquinha'), mohawk: i18n('Moicano'),
+    bald: i18n('Careca'), wavy: i18n('Ondulado'),
   },
   topStyle: {
-    tshirt: 'Camiseta', hoodie: 'Moletom', shirt_tie: 'Camisa e gravata', sweater: 'Suéter', jacket: 'Jaqueta',
-    blouse: 'Blusa', polo: 'Polo',
+    tshirt: i18n('Camiseta'), hoodie: i18n('Moletom'), shirt_tie: i18n('Camisa e gravata'), sweater: i18n('Suéter'), jacket: i18n('Jaqueta'),
+    blouse: i18n('Blusa'), polo: i18n('Polo'),
   },
-  bottomStyle: { pants: 'Calça', shorts: 'Bermuda', skirt: 'Saia' },
+  bottomStyle: { pants: i18n('Calça'), shorts: i18n('Bermuda'), skirt: i18n('Saia') },
   accessory: {
-    none: 'Nenhum', glasses: 'Óculos', sunglasses: 'Óculos escuros', headphones: 'Fone', cap: 'Boné', beanie: 'Gorro',
-    earrings: 'Brincos', bow: 'Laço',
+    none: i18n('Nenhum'), glasses: i18n('Óculos'), sunglasses: i18n('Óculos escuros'), headphones: i18n('Fone'), cap: i18n('Boné'), beanie: i18n('Gorro'),
+    earrings: i18n('Brincos'), bow: i18n('Laço'),
   },
-  facialHair: { none: 'Sem barba', stubble: 'Por fazer', beard: 'Barba', mustache: 'Bigode', goatee: 'Cavanhaque' },
+  facialHair: { none: i18n('Sem barba'), stubble: i18n('Por fazer'), beard: i18n('Barba'), mustache: i18n('Bigode'), goatee: i18n('Cavanhaque') },
 };
 
 /** Rótulo em português de um estilo (cabelo, roupa, acessório...). */

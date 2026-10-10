@@ -1,5 +1,6 @@
 // Falas curtas dos personagens (balõezinhos) — puro. `{nome}` = um colega, `{sala}` = um projeto,
 // `{v}` = valor da aposta, `{a}`/`{b}` = placar. Nada aqui depende do gênero de quem fala.
+import { i18n } from '../../../../shared/i18n';
 import type { TraitId } from './persona';
 
 export type Pool = readonly string[];
@@ -115,11 +116,11 @@ export const TRAIT_TOPICS: Partial<Record<TraitId, keyof typeof CHAT>> = {
 export function timeLine(d: Date): string | null {
   const day = d.getDay();
   const h = d.getHours();
-  if (day === 5 && h >= 12) return 'Sextou! 🎉';
-  if (day === 1 && h < 12) return 'Segunda-feira, né…';
-  if (h >= 6 && h < 10) return 'Bom dia! ☀️';
-  if (h >= 11 && h < 14) return 'Que fome… almoço? 🍽️';
-  if (h >= 20 || h < 5) return 'Ainda aqui a essa hora? 🌙';
+  if (day === 5 && h >= 12) return i18n('Sextou! 🎉');
+  if (day === 1 && h < 12) return i18n('Segunda-feira, né…');
+  if (h >= 6 && h < 10) return i18n('Bom dia! ☀️');
+  if (h >= 11 && h < 14) return i18n('Que fome… almoço? 🍽️');
+  if (h >= 20 || h < 5) return i18n('Ainda aqui a essa hora? 🌙');
   return null;
 }
 
@@ -134,7 +135,7 @@ export interface LineVars {
 /** Preenche os campos da fala. Sem valor para um campo, a fala é descartada (retorna null). */
 export function fill(line: string, vars: LineVars): string | null {
   let ok = true;
-  const out = line.replace(/\{(nome|sala|v|a|b)\}/g, (_, k: keyof LineVars) => {
+  const out = i18n(line).replace(/\{(nome|sala|v|a|b)\}/g, (_, k: keyof LineVars) => {
     const v = vars[k];
     if (v === undefined || v === '') {
       ok = false;
@@ -156,5 +157,5 @@ export function pick(pool: Pool, rng: () => number, vars: LineVars = {}, avoid?:
     if (s !== avoid) return s;
     fallback ??= s;
   }
-  return fallback ?? pool.find((l) => !/\{\w+\}/.test(l)) ?? '…';
+  return fallback ?? i18n(pool.find((l) => !/\{\w+\}/.test(l)) ?? '…');
 }

@@ -7,6 +7,7 @@ import type { UiPrefs } from './prefs';
 import { SoundSettingsGroup } from './settings-sound';
 import type { SoundControl } from './sound';
 import { AboutGroup } from './version';
+import { i18n } from '../../../shared/i18n';
 
 type BoolPref = { [K in keyof UiPrefs]: UiPrefs[K] extends boolean ? K : never }[keyof UiPrefs];
 
@@ -80,54 +81,54 @@ export class SettingsPopover implements UiComponent {
     const flip = (key: BoolPref) => () => ctx.updatePrefs({ [key]: !ctx.prefs[key] } as Partial<UiPrefs>);
 
     this.bubbles = segmented<UiPrefs['bubbles']>(
-      'Balões de atividade',
+      i18n('Balões de atividade'),
       [
-        ['all', 'Todos'],
-        ['important', 'Importantes'],
-        ['none', 'Nenhum'],
+        ['all', i18n('Todos')],
+        ['important', i18n('Importantes')],
+        ['none', i18n('Nenhum')],
       ],
       (v) => ctx.updatePrefs({ bubbles: v }),
     );
     this.liveliness = segmented<UiPrefs['liveliness']>(
-      'Movimento pelo escritório',
+      i18n('Movimento pelo escritório'),
       [
-        ['calm', 'Calmo'],
-        ['normal', 'Normal'],
-        ['lively', 'Agitado'],
+        ['calm', i18n('Calmo')],
+        ['normal', i18n('Normal')],
+        ['lively', i18n('Agitado')],
       ],
       (v) => ctx.updatePrefs({ liveliness: v }),
     );
     this.daylight = segmented<UiPrefs['daylight']>(
-      'Ciclo dia/noite',
+      i18n('Ciclo dia/noite'),
       [
-        ['auto', 'Automático'],
-        ['day', 'Sempre dia'],
-        ['night', 'Sempre noite'],
+        ['auto', i18n('Automático')],
+        ['day', i18n('Sempre dia')],
+        ['night', i18n('Sempre noite')],
       ],
       (v) => ctx.updatePrefs({ daylight: v }),
     );
-    this.daylight.row.append(h('span', { class: 'ui-set__hint', text: 'Automático: céu, luzes e sol nas janelas seguem a hora local.' }));
+    this.daylight.row.append(h('span', { class: 'ui-set__hint', text: i18n('Automático: céu, luzes e sol nas janelas seguem a hora local.') }));
     this.soundGroup = new SoundSettingsGroup(ctx, sound);
 
     this.demoGroup = h(
       'div',
       { class: 'ui-set-group' },
-      h('h3', { text: 'Dados' }),
-      sw('demo', 'Modo demonstração', 'Coloca agentes fictícios no escritório, junto com os reais.', () => void this.toggleDemo()),
+      h('h3', { text: i18n('Dados') }),
+      sw('demo', i18n('Modo demonstração'), i18n('Coloca agentes fictícios no escritório, junto com os reais.'), () => void this.toggleDemo()),
     );
 
     this.about = new AboutGroup(ctx);
 
-    const close = iconButton(ICONS.close, 'Fechar configurações', () => this.hide(), 'ui-icon-btn--sm');
+    const close = iconButton(ICONS.close, i18n('Fechar configurações'), () => this.hide(), 'ui-icon-btn--sm');
     this.el = h(
       'div',
-      { class: 'ui-popover ui-settings', role: 'dialog', tabIndex: -1, attrs: { 'aria-label': 'Configurações', id: 'ui-settings', popover: 'auto' } },
-      h('div', { class: 'ui-popover__head' }, h('h2', { text: 'Configurações' }), close),
+      { class: 'ui-popover ui-settings', role: 'dialog', tabIndex: -1, attrs: { 'aria-label': i18n('Configurações'), id: 'ui-settings', popover: 'auto' } },
+      h('div', { class: 'ui-popover__head' }, h('h2', { text: i18n('Configurações') }), close),
       h(
         'div',
         { class: 'ui-set-group' },
-        h('h3', { text: 'Escritório' }),
-        sw('showNames', 'Mostrar nomes', 'Etiqueta com o nome acima de cada personagem.', flip('showNames')),
+        h('h3', { text: i18n('Escritório') }),
+        sw('showNames', i18n('Mostrar nomes'), i18n('Etiqueta com o nome acima de cada personagem.'), flip('showNames')),
         this.bubbles.row,
         this.liveliness.row,
         this.daylight.row,
@@ -135,8 +136,8 @@ export class SettingsPopover implements UiComponent {
       h(
         'div',
         { class: 'ui-set-group' },
-        h('h3', { text: 'Avisos' }),
-        sw('browserNotifications', 'Notificações do navegador', 'Avisa quando alguém precisa de você e a aba está em segundo plano.', () => void this.toggleNotifications()),
+        h('h3', { text: i18n('Avisos') }),
+        sw('browserNotifications', i18n('Notificações do navegador'), i18n('Avisa quando alguém precisa de você e a aba está em segundo plano.'), () => void this.toggleNotifications()),
       ),
       this.soundGroup.el,
       this.demoGroup,
@@ -208,10 +209,10 @@ export class SettingsPopover implements UiComponent {
     const state = notificationState();
     const hint =
       state === 'unsupported'
-        ? 'Este navegador não oferece notificações.'
+        ? i18n('Este navegador não oferece notificações.')
         : state === 'denied'
-          ? 'Bloqueadas pelo navegador: libere nas permissões do site.'
-          : 'Avisa quando alguém precisa de você e a aba está em segundo plano.';
+          ? i18n('Bloqueadas pelo navegador: libere nas permissões do site.')
+          : i18n('Avisa quando alguém precisa de você e a aba está em segundo plano.');
     setText(notif.hint, hint);
     notif.btn.disabled = state === 'unsupported';
   }
@@ -223,7 +224,7 @@ export class SettingsPopover implements UiComponent {
     }
     const state = await this.notifier.enableBrowserNotifications();
     this.ctx.updatePrefs({ browserNotifications: state === 'granted' });
-    if (state === 'denied') this.ctx.announce('Notificações bloqueadas pelo navegador.');
+    if (state === 'denied') this.ctx.announce(i18n('Notificações bloqueadas pelo navegador.'));
   }
 
   private async toggleDemo(): Promise<void> {
@@ -233,9 +234,9 @@ export class SettingsPopover implements UiComponent {
     const enable = !this.ctx.store.snapshot?.meta.demo;
     try {
       const ok = await this.ctx.store.setDemo(enable);
-      this.ctx.announce(ok ? (enable ? 'Modo demonstração ligado.' : 'Modo demonstração desligado.') : 'Não foi possível mudar o modo demonstração.');
+      this.ctx.announce(ok ? (enable ? i18n('Modo demonstração ligado.') : i18n('Modo demonstração desligado.')) : i18n('Não foi possível mudar o modo demonstração.'));
     } catch {
-      this.ctx.announce('Não foi possível falar com o servidor.');
+      this.ctx.announce(i18n('Não foi possível falar com o servidor.'));
     } finally {
       this.demoBusy = false;
       this.ctx.invalidate();

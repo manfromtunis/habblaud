@@ -9,6 +9,7 @@ import { ICONS } from './icons';
 import { shellDoneKind } from './model';
 import { officeIsEmpty } from './overlays';
 import { createAccountChip, updateAccountChip } from './widgets';
+import { i18n } from '../../../shared/i18n';
 
 const VISIBLE = 50;
 
@@ -31,13 +32,13 @@ export class FeedPanel implements UiComponent {
   private meta = new Map<string, AgentMeta>();
 
   constructor(private ctx: UiContext) {
-    this.list = h('ol', { class: 'ui-feed__list', role: 'log', attrs: { 'aria-label': 'Eventos recentes', 'aria-live': 'off' } });
+    this.list = h('ol', { class: 'ui-feed__list', role: 'log', attrs: { 'aria-label': i18n('Eventos recentes'), 'aria-live': 'off' } });
     this.rows = new KeyedList<FeedItem>(this.list, {
       key: (f) => f.id,
       create: (f) => this.createRow(f),
       update: (li, f) => this.updateRow(li, f),
     });
-    this.empty = h('p', { class: 'ui-feed__empty', text: 'Os eventos dos agentes aparecem aqui assim que acontecem.' });
+    this.empty = h('p', { class: 'ui-feed__empty', text: i18n('Os eventos dos agentes aparecem aqui assim que acontecem.') });
     this.newPill = h('button', { class: 'ui-feed__new', type: 'button', hidden: true, on: { click: () => this.resume() } });
     this.ticker = h('span', { class: 'ui-feed__ticker', attrs: { 'aria-hidden': 'true' } });
     this.filterNote = h('span', { class: 'ui-feed__filter', hidden: true });
@@ -49,11 +50,11 @@ export class FeedPanel implements UiComponent {
     });
     this.el = h(
       'section',
-      { class: 'ui-panel ui-feed', attrs: { 'aria-label': 'Feed de atividade', id: 'ui-feed' } },
+      { class: 'ui-panel ui-feed', attrs: { 'aria-label': i18n('Feed de atividade'), id: 'ui-feed' } },
       h(
         'div',
         { class: 'ui-feed__head' },
-        h('button', { class: 'ui-feed__title', type: 'button', on: { click: () => ctx.togglePanel('feed') } }, h('h2', { text: 'Atividade' }), this.filterNote, this.ticker),
+        h('button', { class: 'ui-feed__title', type: 'button', on: { click: () => ctx.togglePanel('feed') } }, h('h2', { text: i18n('Atividade') }), this.filterNote, this.ticker),
         this.newPill,
         this.toggleBtn,
       ),
@@ -105,24 +106,24 @@ export class FeedPanel implements UiComponent {
     const visible = filtering ? this.items.filter((f) => this.visible(f)) : this.items;
     const pending = filtering ? this.pending.filter((f) => this.visible(f)) : this.pending;
     setHidden(this.newPill, !(paused && pending.length > 0 && open));
-    if (pending.length) setText(this.newPill, pending.length === 1 ? '1 nova' : `${Math.min(pending.length, 99)} novas`);
+    if (pending.length) setText(this.newPill, pending.length === 1 ? i18n('1 nova') : i18n`${Math.min(pending.length, 99)} novas`);
     // Escritório vazio: o cartão central já explica; o feed só mostra o que houver de antes.
     setHidden(this.empty, visible.length > 0 || officeIsEmpty(this.ctx));
     setText(
       this.empty,
-      filtering && this.items.length > 0 ? 'Nenhum evento das contas selecionadas.' : 'Os eventos dos agentes aparecem aqui assim que acontecem.',
+      filtering && this.items.length > 0 ? i18n('Nenhum evento das contas selecionadas.') : i18n('Os eventos dos agentes aparecem aqui assim que acontecem.'),
     );
     setHidden(this.filterNote, !filtering);
     if (filtering) {
       const names = hidden.map((id) => this.ctx.account(id)?.name ?? id);
-      setText(this.filterNote, 'filtrado');
-      setTitle(this.filterNote, `Sem ${names.join(', ')} (filtro da barra lateral)`);
+      setText(this.filterNote, i18n('filtrado'));
+      setTitle(this.filterNote, i18n`Sem ${names.join(', ')} (filtro da barra lateral)`);
     }
 
     const latest = pending[pending.length - 1] ?? visible[visible.length - 1];
     setText(this.ticker, latest ? `${latest.agentName}: ${latest.activity.icon} ${latest.activity.text}` : '');
     this.toggleBtn.innerHTML = open ? ICONS.chevronDown : ICONS.chevronUp;
-    const label = open ? 'Recolher feed ( ] )' : 'Abrir feed ( ] )';
+    const label = open ? i18n('Recolher feed ( ] )') : i18n('Abrir feed ( ] )');
     setAttr(this.toggleBtn, 'aria-label', label);
     setTitle(this.toggleBtn, label);
     setAttr(this.toggleBtn, 'aria-expanded', String(open));
@@ -208,7 +209,7 @@ export class FeedPanel implements UiComponent {
     li.classList.toggle('is-shell-fail', done === 'fail');
     const present = !!this.ctx.agent(f.agentId);
     li.classList.toggle('is-gone', !present);
-    setTitle(btn, `${formatClock(f.activity.at)} · ${f.agentName} em ${f.roomName}\n${f.activity.text}${f.activity.detail ? `\n${f.activity.detail}` : ''}`);
+    setTitle(btn, i18n`${formatClock(f.activity.at)} · ${f.agentName} em ${f.roomName}\n${f.activity.text}${f.activity.detail ? `\n${f.activity.detail}` : ''}`);
   }
 
   private metaFromStore(id: string): AgentMeta | undefined {

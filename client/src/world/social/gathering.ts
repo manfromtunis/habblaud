@@ -3,6 +3,7 @@
 // comemora, paga) fica em social.ts.
 import type { Dir, HeldItem, Pose } from '../../art/api';
 import { hasTrait, type Bond, type Persona, type TraitId } from './persona';
+import { i18n } from '../../../../shared/i18n';
 
 export type GatherKind = 'tv' | 'videogame' | 'arcade' | 'pingpong' | 'kitchen' | 'talk' | 'rps' | 'mirror';
 export type Role = 'player' | 'watcher' | 'talker';
@@ -27,14 +28,14 @@ export interface KindInfo {
 }
 
 export const KINDS: Readonly<Record<GatherKind, KindInfo>> = {
-  tv: { label: 'Vendo TV', emoji: '📺', min: 2, max: 5 },
-  videogame: { label: 'Jogando videogame', emoji: '🎮', min: 2, max: 5, match: true },
-  arcade: { label: 'Duelo no fliperama', emoji: '👾', min: 2, max: 2, match: true },
-  pingpong: { label: 'Jogando pingue-pongue', emoji: '🏓', min: 2, max: 4, match: true },
-  kitchen: { label: 'Papo na copa', emoji: '☕', min: 2, max: 4 },
-  talk: { label: 'Conversando', emoji: '💬', min: 2, max: 2 },
-  rps: { label: 'Jokenpô', emoji: '✊', min: 2, max: 4, match: true },
-  mirror: { label: 'Se arrumando no espelho', emoji: '💄', min: 1, max: 2, solo: true },
+  tv: { label: i18n('Vendo TV'), emoji: '📺', min: 2, max: 5 },
+  videogame: { label: i18n('Jogando videogame'), emoji: '🎮', min: 2, max: 5, match: true },
+  arcade: { label: i18n('Duelo no fliperama'), emoji: '👾', min: 2, max: 2, match: true },
+  pingpong: { label: i18n('Jogando pingue-pongue'), emoji: '🏓', min: 2, max: 4, match: true },
+  kitchen: { label: i18n('Papo na copa'), emoji: '☕', min: 2, max: 4 },
+  talk: { label: i18n('Conversando'), emoji: '💬', min: 2, max: 2 },
+  rps: { label: i18n('Jokenpô'), emoji: '✊', min: 2, max: 4, match: true },
+  mirror: { label: i18n('Se arrumando no espelho'), emoji: '💄', min: 1, max: 2, solo: true },
 };
 
 export interface Member {

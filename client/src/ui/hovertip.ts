@@ -15,6 +15,7 @@ import {
   updateShellActivityLine,
   updateStatusDot,
 } from './widgets';
+import { i18n } from '../../../shared/i18n';
 
 export class HoverTip implements UiComponent {
   readonly el: HTMLElement;
@@ -103,7 +104,7 @@ export class HoverTip implements UiComponent {
     setHidden(this.task, !title);
     if (title) setText(this.task, title);
     const inStatus = now - a.statusSince;
-    setText(this.since, a.statusSince && inStatus >= 60_000 ? `há ${formatDuration(inStatus)}` : '');
+    setText(this.since, a.statusSince && inStatus >= 60_000 ? i18n`há ${formatDuration(inStatus)}` : '');
     if (wait) updateShellActivityLine(this.activity, wait, now);
     else updateActivityLine(this.activity, a.activity);
     setHidden(this.mood, !wait);

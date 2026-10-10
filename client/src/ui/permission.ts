@@ -13,6 +13,7 @@ import { h, KeyedList, setAttr, setHidden, setText, setTitle } from './dom';
 import { formatClock, formatDuration } from './format';
 import { ICONS } from './icons';
 import { diffLineKind, moreLabel, previewText, showToolInput, splitToolTitle } from './terminal';
+import { i18n } from '../../../shared/i18n';
 
 /** Evento (em ctx.root) que pede para o cartão de um agente aparecer: rolar até ele e receber o foco. */
 export const PERMISSION_FOCUS_EVENT = 'habblaud:permission-focus';
@@ -20,10 +21,10 @@ const PREVIEW_LINES = 12;
 const MESSAGE_MAX = 1_000;
 
 const DESTINATIONS: Record<string, string> = {
-  session: 'só nesta sessão',
-  localSettings: 'neste projeto, só para você',
-  projectSettings: 'neste projeto, para todos (versionado)',
-  userSettings: 'em todos os projetos',
+  session: i18n('só nesta sessão'),
+  localSettings: i18n('neste projeto, só para você'),
+  projectSettings: i18n('neste projeto, para todos (versionado)'),
+  userSettings: i18n('em todos os projetos'),
 };
 
 /** Onde a regra "sempre permitir" fica guardada, em português. */
@@ -37,13 +38,13 @@ export function destinationLabel(destination: string): string {
  */
 export function expiryText(expiresAt: number, now: number, seconds = false): string {
   const left = expiresAt - now;
-  if (left <= 0) return 'voltando ao terminal…';
-  if (left < 60_000) return seconds ? `volta ao terminal em ${Math.ceil(left / 1_000)} s` : 'volta ao terminal em menos de 1 min';
-  return `volta ao terminal em ${formatDuration(left)}`;
+  if (left <= 0) return i18n('voltando ao terminal…');
+  if (left < 60_000) return seconds ? i18n`volta ao terminal em ${Math.ceil(left / 1_000)} s` : i18n('volta ao terminal em menos de 1 min');
+  return i18n`volta ao terminal em ${formatDuration(left)}`;
 }
 
 /** Aviso do cartão de um pedido do Codex. */
-export const CODEX_PERMISSION_NOTE = 'No Codex, a aprovação só aparece no terminal depois que você responder aqui ou o prazo acabar.';
+export const CODEX_PERMISSION_NOTE = i18n('No Codex, a aprovação só aparece no terminal depois que você responder aqui ou o prazo acabar.');
 
 /** O que o cartão oferece para um pedido (muda com a ferramenta). */
 export interface PermissionOptions {
@@ -68,7 +69,7 @@ export function permissionOptions(p: Pick<PermissionRequestInfo, 'provider' | 's
     interrupt: true,
     reasonRequired: false,
     seconds: false,
-    note: blocking ? 'Este subagente roda em segundo plano: o terminal só mostra o pedido depois que você responder aqui ou escolher “Responder no terminal”.' : '',
+    note: blocking ? i18n('Este subagente roda em segundo plano: o terminal só mostra o pedido depois que você responder aqui ou escolher “Responder no terminal”.') : '',
   };
 }
 
@@ -162,7 +163,7 @@ function previewBlock(p: Pick<PermissionRequestInfo, 'title' | 'input' | 'inputK
     more.addEventListener('click', () => {
       open = !open;
       fill(body, open ? pv.text : pv.head);
-      setText(more, open ? 'recolher' : moreLabel(pv.hiddenLines));
+      setText(more, open ? i18n('recolher') : moreLabel(pv.hiddenLines));
       setAttr(more, 'aria-expanded', String(open));
     });
     box.append(more);
@@ -181,7 +182,7 @@ interface AskRefs {
   text: HTMLInputElement;
 }
 
-const DONE: Record<PermissionDecision['behavior'], string> = { allow: 'Aprovado', deny: 'Recusado', answer: 'Respondido', terminal: 'Devolvido ao terminal' };
+const DONE: Record<PermissionDecision['behavior'], string> = { allow: i18n('Aprovado'), deny: i18n('Recusado'), answer: i18n('Respondido'), terminal: i18n('Devolvido ao terminal') };
 
 /**
  * Cartão "Pede permissão" (ou "Pergunta para você", no AskUserQuestion) na gaveta do agente. Some quando o
@@ -233,21 +234,21 @@ export class PermissionCard {
     this.preview = h('div', { class: 'ui-perm__preview' });
     this.note = h('p', { class: 'ui-perm__note', hidden: true });
     this.queue = h('p', { class: 'ui-perm__queue', hidden: true });
-    this.remote = h('p', { class: 'ui-perm__note', hidden: true, text: 'Para responder por aqui, abra o Habblaud por http://localhost (ou 127.0.0.1). Por enquanto, responda no terminal.' });
+    this.remote = h('p', { class: 'ui-perm__note', hidden: true, text: i18n('Para responder por aqui, abra o Habblaud por http://localhost (ou 127.0.0.1). Por enquanto, responda no terminal.') });
 
-    this.approveBtn = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--allow', type: 'button', on: { click: () => this.send({ behavior: 'allow' }) } }, '✓ Aprovar');
-    this.answerBtn = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--allow', type: 'button', hidden: true, on: { click: () => this.sendAnswer() } }, '✓ Responder');
-    this.askForm = h('form', { class: 'ui-perm-ask', hidden: true, attrs: { 'aria-label': 'Perguntas do agente' } });
+    this.approveBtn = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--allow', type: 'button', on: { click: () => this.send({ behavior: 'allow' }) } }, i18n('✓ Aprovar'));
+    this.answerBtn = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--allow', type: 'button', hidden: true, on: { click: () => this.sendAnswer() } }, i18n('✓ Responder'));
+    this.askForm = h('form', { class: 'ui-perm-ask', hidden: true, attrs: { 'aria-label': i18n('Perguntas do agente') } });
     this.askForm.addEventListener('submit', (e) => {
       e.preventDefault();
       this.sendAnswer();
     });
     this.askForm.addEventListener('change', () => this.syncAnswer());
-    this.denyBtn = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--deny', type: 'button', attrs: { 'aria-expanded': 'false' }, on: { click: () => this.toggleDeny() } }, '✕ Recusar…');
+    this.denyBtn = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--deny', type: 'button', attrs: { 'aria-expanded': 'false' }, on: { click: () => this.toggleDeny() } }, i18n('✕ Recusar…'));
     this.terminalBtn = h(
       'button',
-      { class: 'ui-btn ui-perm__btn', type: 'button', title: 'O Habblaud deixa este pedido de lado: vale o que você responder no terminal', on: { click: () => this.send({ behavior: 'terminal' }) } },
-      'Responder no terminal',
+      { class: 'ui-btn ui-perm__btn', type: 'button', title: i18n('O Habblaud deixa este pedido de lado: vale o que você responder no terminal'), on: { click: () => this.send({ behavior: 'terminal' }) } },
+      i18n('Responder no terminal'),
     );
 
     const list = h('div', { class: 'ui-perm__rules' });
@@ -258,21 +259,21 @@ export class PermissionCard {
       update: (btn, s) => {
         const rules = s.rules.join(', ');
         setText(btn, `${rules} · ${destinationLabel(s.destination)}`);
-        setTitle(btn, `Aprovar agora e não perguntar de novo: ${rules} (${destinationLabel(s.destination)})`);
+        setTitle(btn, i18n`Aprovar agora e não perguntar de novo: ${rules} (${destinationLabel(s.destination)})`);
       },
     });
-    this.always = h('div', { class: 'ui-perm__always', hidden: true }, h('span', { class: 'ui-perm__always-label', text: 'Aprovar e não perguntar de novo:' }), list);
+    this.always = h('div', { class: 'ui-perm__always', hidden: true }, h('span', { class: 'ui-perm__always-label', text: i18n('Aprovar e não perguntar de novo:') }), list);
 
-    this.reason = h('textarea', { class: 'ui-perm__reason', attrs: { rows: 2, maxlength: MESSAGE_MAX, placeholder: 'Motivo (opcional, vai para o agente). Ex.: use pnpm em vez de npm', 'aria-label': 'Motivo da recusa (opcional)' } });
+    this.reason = h('textarea', { class: 'ui-perm__reason', attrs: { rows: 2, maxlength: MESSAGE_MAX, placeholder: i18n('Motivo (opcional, vai para o agente). Ex.: use pnpm em vez de npm'), 'aria-label': i18n('Motivo da recusa (opcional)') } });
     this.interrupt = h('input', { type: 'checkbox', class: 'ui-perm__check' });
-    this.interruptRow = h('label', { class: 'ui-perm__check-row' }, this.interrupt, h('span', { text: 'Interromper o agente (ele para e espera você)' }));
-    this.denySubmit = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--deny', type: 'submit' }, 'Recusar');
+    this.interruptRow = h('label', { class: 'ui-perm__check-row' }, this.interrupt, h('span', { text: i18n('Interromper o agente (ele para e espera você)') }));
+    this.denySubmit = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--deny', type: 'submit' }, i18n('Recusar'));
     this.denyForm = h(
       'form',
       { class: 'ui-perm__deny', hidden: true },
       this.reason,
       this.interruptRow,
-      h('div', { class: 'ui-perm__actions' }, this.denySubmit, h('button', { class: 'ui-btn ui-perm__btn', type: 'button', on: { click: () => this.toggleDeny(false) } }, 'Cancelar')),
+      h('div', { class: 'ui-perm__actions' }, this.denySubmit, h('button', { class: 'ui-btn ui-perm__btn', type: 'button', on: { click: () => this.toggleDeny(false) } }, i18n('Cancelar'))),
     );
     // Codex: recusar só com motivo (o botão acende quando há texto).
     this.reason.addEventListener('input', () => this.syncDeny());
@@ -334,17 +335,17 @@ export class PermissionCard {
     if (this.el.dataset.kind !== kind) {
       this.el.dataset.kind = kind;
       this.icon.innerHTML = ask ? ICONS.help : ICONS.lock;
-      setAttr(this.el, 'aria-label', ask ? 'Pergunta do agente' : 'Pedido de permissão');
+      setAttr(this.el, 'aria-label', ask ? i18n('Pergunta do agente') : i18n('Pedido de permissão'));
     }
-    setText(this.title, ask ? (p.questions!.length > 1 ? 'Perguntas para você' : 'Pergunta para você') : 'Pede permissão');
-    const by = p.subagent ? ` · subagente ${p.subagent}` : '';
-    setText(this.what, ask ? `Aqui ou no terminal: vale a primeira resposta${by}` :`${p.icon} ${p.text}${by}`);
+    setText(this.title, ask ? (p.questions!.length > 1 ? i18n('Perguntas para você') : i18n('Pergunta para você')) : i18n('Pede permissão'));
+    const by = p.subagent ? i18n` · subagente ${p.subagent}` : '';
+    setText(this.what, ask ? i18n`Aqui ou no terminal: vale a primeira resposta${by}` :`${p.icon} ${p.text}${by}`);
     setText(this.timer, expiryText(p.expiresAt, now, opts.seconds));
     setTitle(
       this.timer,
       codex
-        ? `Pedido feito às ${formatClock(p.createdAt)}. Sem resposta aqui até ${formatClock(p.expiresAt)}, o Codex segue sem a decisão do escritório e pede a aprovação no terminal.`
-        : `Pedido feito às ${formatClock(p.createdAt)}. Sem resposta aqui até ${formatClock(p.expiresAt)}, o Habblaud devolve o pedido ao terminal.`,
+        ? i18n`Pedido feito às ${formatClock(p.createdAt)}. Sem resposta aqui até ${formatClock(p.expiresAt)}, o Codex segue sem a decisão do escritório e pede a aprovação no terminal.`
+        : i18n`Pedido feito às ${formatClock(p.createdAt)}. Sem resposta aqui até ${formatClock(p.expiresAt)}, o Habblaud devolve o pedido ao terminal.`,
     );
 
     // Pergunta: o formulário com as opções no lugar do título da ferramenta e da prévia dos argumentos.
@@ -363,7 +364,7 @@ export class PermissionCard {
       setTitle(this.tool, p.title);
       if (this.preview.dataset.id !== `${p.id}:${full ? 'full' : 'short'}`) {
         this.preview.dataset.id = `${p.id}:${full ? 'full' : 'short'}`;
-        this.preview.replaceChildren(full ? (previewBlock(full) ?? '') : h('span', { class: 'ui-muted ui-small', text: 'Carregando os detalhes…' }));
+        this.preview.replaceChildren(full ? (previewBlock(full) ?? '') : h('span', { class: 'ui-muted ui-small', text: i18n('Carregando os detalhes…') }));
       }
     }
 
@@ -371,7 +372,7 @@ export class PermissionCard {
     setHidden(this.note, !opts.note);
     setText(this.note, opts.note);
     setHidden(this.queue, !p.queued);
-    setText(this.queue, p.queued ? `+${p.queued} ${p.queued === 1 ? 'pedido' : 'pedidos'} deste agente na fila` : '');
+    setText(this.queue, p.queued ? i18n`+${p.queued} ${p.queued === 1 ? i18n('pedido') : i18n('pedidos')} deste agente na fila` : '');
 
     setHidden(this.remote, this.isLocal());
     const busy = this.isBusy();
@@ -380,10 +381,10 @@ export class PermissionCard {
     for (const b of [this.approveBtn, this.denyBtn, this.terminalBtn]) b.disabled = busy;
     for (const el of this.askForm.querySelectorAll('input')) el.disabled = busy;
     if (ask) this.syncAnswer();
-    setTitle(this.denyBtn, ask ? 'Não responder: o agente segue sem a resposta (com o motivo, se você escrever um)' : codex ? 'Recusar com um motivo (o Codex pede um)' : '');
+    setTitle(this.denyBtn, ask ? i18n('Não responder: o agente segue sem a resposta (com o motivo, se você escrever um)') : codex ? i18n('Recusar com um motivo (o Codex pede um)') : '');
     setTitle(
       this.terminalBtn,
-      codex ? 'O Habblaud solta o pedido agora: o Codex mostra a aprovação no terminal' : 'O Habblaud deixa este pedido de lado: vale o que você responder no terminal',
+      codex ? i18n('O Habblaud solta o pedido agora: o Codex mostra a aprovação no terminal') : i18n('O Habblaud deixa este pedido de lado: vale o que você responder no terminal'),
     );
     this.suggestions.sync(opts.always ? (p.suggestions ?? []) : []);
     for (const b of this.suggestions.container.querySelectorAll('button')) b.disabled = busy;
@@ -394,10 +395,10 @@ export class PermissionCard {
       this.reason,
       'placeholder',
       opts.reasonRequired
-        ? 'Motivo (obrigatório no Codex, vai para o agente). Ex.: use pnpm em vez de npm'
-        : `Motivo (opcional, vai para o agente). Ex.: ${ask ? 'decida você, com o que for mais seguro' : 'use pnpm em vez de npm'}`,
+        ? i18n('Motivo (obrigatório no Codex, vai para o agente). Ex.: use pnpm em vez de npm')
+        : i18n`Motivo (opcional, vai para o agente). Ex.: ${ask ? i18n('decida você, com o que for mais seguro') : i18n('use pnpm em vez de npm')}`,
     );
-    setAttr(this.reason, 'aria-label', opts.reasonRequired ? 'Motivo da recusa (obrigatório)' : 'Motivo da recusa (opcional)');
+    setAttr(this.reason, 'aria-label', opts.reasonRequired ? i18n('Motivo da recusa (obrigatório)') : i18n('Motivo da recusa (opcional)'));
     for (const el of this.denyForm.querySelectorAll<HTMLButtonElement | HTMLTextAreaElement | HTMLInputElement>('button, textarea, input')) el.disabled = busy;
     this.syncDeny();
     setAttr(this.denyBtn, 'aria-expanded', String(this.phase === 'deny'));
@@ -444,7 +445,7 @@ export class PermissionCard {
   private syncDeny(): void {
     const missing = this.opts.reasonRequired && !this.reason.value.trim();
     this.denySubmit.disabled = this.isBusy() || missing;
-    setTitle(this.denySubmit, missing ? 'Escreva o motivo: o Codex recusa só com um motivo' : '');
+    setTitle(this.denySubmit, missing ? i18n('Escreva o motivo: o Codex recusa só com um motivo') : '');
   }
 
   private toggleDeny(open = this.phase !== 'deny'): void {
@@ -460,13 +461,13 @@ export class PermissionCard {
     if (!id || this.phase === 'sending' || this.phase === 'sent') return;
     this.phase = 'sending';
     this.status.classList.remove('is-error');
-    setText(this.status, 'Enviando a resposta…');
+    setText(this.status, i18n('Enviando a resposta…'));
     this.ctx.invalidate();
     let error: string | undefined;
     try {
       error = await this.ctx.store.decidePermission(id, d);
     } catch {
-      error = 'Não foi possível falar com o Habblaud. Responda no terminal.';
+      error = i18n('Não foi possível falar com o Habblaud. Responda no terminal.');
     }
     if (this.id !== id) return;
     if (error) {
@@ -477,7 +478,7 @@ export class PermissionCard {
       this.phase = 'sent';
       const done = DONE[d.behavior];
       setText(this.status, `${done}.`);
-      this.ctx.announce(`${done}: ${this.ctx.agent(this.agentId)?.name ?? 'agente'}.`);
+      this.ctx.announce(`${done}: ${this.ctx.agent(this.agentId)?.name ?? i18n('agente')}.`);
     }
     this.ctx.invalidate();
   }
@@ -512,7 +513,7 @@ export class PermissionCard {
     const text = h('input', {
       class: 'ui-perm-ask__text',
       type: 'text',
-      attrs: { maxlength: ANSWER_OTHER_MAX, placeholder: 'Escreva a sua resposta', autocomplete: 'off', 'aria-label': `Outra resposta para: ${q.question}` },
+      attrs: { maxlength: ANSWER_OTHER_MAX, placeholder: i18n('Escreva a sua resposta'), autocomplete: 'off', 'aria-label': i18n`Outra resposta para: ${q.question}` },
     });
     text.addEventListener('input', () => {
       // Escrever no campo marca o "Outro".
@@ -533,9 +534,9 @@ export class PermissionCard {
       'fieldset',
       { class: 'ui-perm-ask__q' },
       h('legend', { class: 'ui-perm-ask__legend' }, q.header ? h('span', { class: 'ui-ask__tag', text: q.header }) : null, h('span', { class: 'ui-ask__question', text: q.question })),
-      h('p', { class: 'ui-ask__hint', text: q.multiSelect ? 'Pode escolher mais de uma' : 'Escolha uma' }),
+      h('p', { class: 'ui-ask__hint', text: q.multiSelect ? i18n('Pode escolher mais de uma') : i18n('Escolha uma') }),
       ...options.map(({ input: box, o }) => h('label', { class: 'ui-perm-ask__opt' }, box, optionText(o.label, o.description))),
-      h('div', { class: 'ui-perm-ask__other' }, h('label', { class: 'ui-perm-ask__opt' }, other, optionText('Outro')), text),
+      h('div', { class: 'ui-perm-ask__other' }, h('label', { class: 'ui-perm-ask__opt' }, other, optionText(i18n('Outro'))), text),
     );
     return { q, el, options: options.map((x) => x.input), other, text };
   }
@@ -556,7 +557,7 @@ export class PermissionCard {
   private syncAnswer(): void {
     const ready = !!this.answers();
     this.answerBtn.disabled = this.isBusy() || !ready;
-    setTitle(this.answerBtn, ready ? 'Mandar as respostas ao agente' : 'Responda todas as perguntas (no “Outro”, escreva a resposta)');
+    setTitle(this.answerBtn, ready ? i18n('Mandar as respostas ao agente') : i18n('Responda todas as perguntas (no “Outro”, escreva a resposta)'));
   }
 
   private sendAnswer(): void {

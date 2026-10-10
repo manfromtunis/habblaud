@@ -8,6 +8,7 @@
 // Sempre: ampulheta virando acima da cabeça, monitor em 'progress' e balão "⏳ <rótulo> · <tempo>".
 import type { Activity, AgentStatus, ShellJob } from '../../../../shared/types';
 import type { Dir, IconName } from '../../art/api';
+import { i18n } from '../../../../shared/i18n';
 
 export type ShellStage = 'popcorn' | 'restless' | 'cobweb' | 'nap';
 
@@ -121,8 +122,8 @@ export function shellLabel(a: { status: AgentStatus; shells?: ShellJob[] }): str
   const j = oldestShell(a.shells, fg);
   const label = j?.label?.trim();
   if (label) return label;
-  if (j?.kind === 'monitor') return 'Monitorando um processo';
-  return fg ? 'Comando no terminal' : 'Comando em segundo plano';
+  if (j?.kind === 'monitor') return i18n('Monitorando um processo');
+  return fg ? i18n('Comando no terminal') : i18n('Comando em segundo plano');
 }
 
 /**

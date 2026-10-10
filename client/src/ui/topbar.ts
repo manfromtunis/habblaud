@@ -9,6 +9,7 @@ import { focusPermission, nextPermissionAgent, permissionAgents } from './permis
 import { UsageCards } from './usage';
 import { VersionChip } from './version';
 import { wordmark } from './widgets';
+import { i18n } from '../../../shared/i18n';
 
 interface CounterRefs {
   el: HTMLElement;
@@ -18,11 +19,11 @@ interface CounterRefs {
 
 /** Contadores fixos (o de shells é à parte: só aparece quando há shells rodando). */
 const COUNTERS: { key: Exclude<keyof Counters, 'shells'>; singular: string; plural: string; hint: string }[] = [
-  { key: 'rooms', singular: 'sala', plural: 'salas', hint: 'Salas abertas (uma por projeto)' },
-  { key: 'agents', singular: 'agente', plural: 'agentes', hint: 'Agentes no escritório (principais e subagentes)' },
-  { key: 'working', singular: 'trabalhando', plural: 'trabalhando', hint: 'Agentes processando um pedido agora' },
-  { key: 'subagents', singular: 'subagente', plural: 'subagentes', hint: 'Subagentes em atividade' },
-  { key: 'waiting', singular: 'precisa de você', plural: 'precisam de você', hint: 'Agentes esperando sua resposta no terminal' },
+  { key: 'rooms', singular: i18n('sala'), plural: i18n('salas'), hint: i18n('Salas abertas (uma por projeto)') },
+  { key: 'agents', singular: i18n('agente'), plural: i18n('agentes'), hint: i18n('Agentes no escritório (principais e subagentes)') },
+  { key: 'working', singular: i18n('trabalhando'), plural: i18n('trabalhando'), hint: i18n('Agentes processando um pedido agora') },
+  { key: 'subagents', singular: i18n('subagente'), plural: i18n('subagentes'), hint: i18n('Subagentes em atividade') },
+  { key: 'waiting', singular: i18n('precisa de você'), plural: i18n('precisam de você'), hint: i18n('Agentes esperando sua resposta no terminal') },
 ];
 const WAITING_HINT = COUNTERS.find((c) => c.key === 'waiting')!.hint;
 
@@ -56,9 +57,9 @@ export class TopBar implements UiComponent {
 
     this.pillText = h('span', { class: 'ui-pill__text' });
     this.pill = h('span', { class: 'ui-pill', role: 'status', attrs: { 'aria-live': 'polite' } }, h('span', { class: 'ui-pill__dot' }), this.pillText);
-    this.demoBadge = h('span', { class: 'ui-demo-badge', text: 'Demonstração', title: 'Agentes de demonstração ligados (desligue em Configurações)', hidden: true });
+    this.demoBadge = h('span', { class: 'ui-demo-badge', text: i18n('Demonstração'), title: i18n('Agentes de demonstração ligados (desligue em Configurações)'), hidden: true });
 
-    const counterWrap = h('div', { class: 'ui-counters', role: 'group', attrs: { 'aria-label': 'Resumo do escritório' } });
+    const counterWrap = h('div', { class: 'ui-counters', role: 'group', attrs: { 'aria-label': i18n('Resumo do escritório') } });
     for (const c of COUNTERS) {
       const value = h('span', { class: 'ui-counter__value', text: '0' });
       const label = h('span', { class: 'ui-counter__label', text: c.plural });
@@ -67,7 +68,7 @@ export class TopBar implements UiComponent {
         // Em telas pequenas o rótulo some e fica a mão levantada.
         const icon = h('span', { class: 'ui-counter__icon', attrs: { 'aria-hidden': 'true' } });
         icon.innerHTML = ICONS.hand;
-        el = h('button', { class: 'ui-counter ui-counter--waiting', type: 'button', title: `${c.hint}. Clique para ir até o primeiro.`, on: { click: () => this.focusFirstWaiting() } }, icon, value, label);
+        el = h('button', { class: 'ui-counter ui-counter--waiting', type: 'button', title: i18n`${c.hint}. Clique para ir até o primeiro.`, on: { click: () => this.focusFirstWaiting() } }, icon, value, label);
       } else {
         el = h('div', { class: `ui-counter ui-counter--${c.key}`, title: c.hint }, value, label);
       }
@@ -93,26 +94,26 @@ export class TopBar implements UiComponent {
 
     this.usage = new UsageCards(ctx);
 
-    this.sidebarBtn = iconButton(ICONS.sidebar, 'Painel lateral ( [ )', () => ctx.togglePanel('sidebar'), 'ui-btn-sidebar');
-    this.feedBtn = iconButton(ICONS.feed, 'Feed de atividade ( ] )', () => ctx.togglePanel('feed'));
-    this.timelapseBtn = iconButton(TIMELAPSE_ICONS.timelapse, 'Timelapse: reproduzir o dia (L)', () => ctx.toggleTimelapse(), 'ui-btn-timelapse');
-    this.settingsBtn = iconButton(ICONS.settings, 'Configurações', () => ctx.toggleSettings());
+    this.sidebarBtn = iconButton(ICONS.sidebar, i18n('Painel lateral ( [ )'), () => ctx.togglePanel('sidebar'), 'ui-btn-sidebar');
+    this.feedBtn = iconButton(ICONS.feed, i18n('Feed de atividade ( ] )'), () => ctx.togglePanel('feed'));
+    this.timelapseBtn = iconButton(TIMELAPSE_ICONS.timelapse, i18n('Timelapse: reproduzir o dia (L)'), () => ctx.toggleTimelapse(), 'ui-btn-timelapse');
+    this.settingsBtn = iconButton(ICONS.settings, i18n('Configurações'), () => ctx.toggleSettings());
     this.settingsBtn.setAttribute('aria-haspopup', 'dialog');
     this.version = new VersionChip(ctx, this.settingsBtn);
     const viewGroup = h(
       'div',
-      { class: 'ui-btn-group', role: 'group', attrs: { 'aria-label': 'Câmera' } },
-      iconButton(ICONS.overview, 'Visão geral (O)', () => ctx.camera('overview')),
-      iconButton(ICONS.zoomOut, 'Afastar (−)', () => ctx.camera('zoomOut')),
-      iconButton(ICONS.zoomIn, 'Aproximar (+)', () => ctx.camera('zoomIn')),
+      { class: 'ui-btn-group', role: 'group', attrs: { 'aria-label': i18n('Câmera') } },
+      iconButton(ICONS.overview, i18n('Visão geral (O)'), () => ctx.camera('overview')),
+      iconButton(ICONS.zoomOut, i18n('Afastar (−)'), () => ctx.camera('zoomOut')),
+      iconButton(ICONS.zoomIn, i18n('Aproximar (+)'), () => ctx.camera('zoomIn')),
     );
     const panelGroup = h(
       'div',
-      { class: 'ui-btn-group', role: 'group', attrs: { 'aria-label': 'Painéis' } },
+      { class: 'ui-btn-group', role: 'group', attrs: { 'aria-label': i18n('Painéis') } },
       this.timelapseBtn,
       this.feedBtn,
       this.settingsBtn,
-      iconButton(ICONS.help, 'Ajuda (?)', () => ctx.openHelp()),
+      iconButton(ICONS.help, i18n('Ajuda (?)'), () => ctx.openHelp()),
     );
     this.panelGroup = panelGroup;
 
@@ -149,16 +150,16 @@ export class TopBar implements UiComponent {
     const conn = store.connection;
     if (conn === 'open') this.hadOpen = true;
     const label =
-      conn === 'open' ? 'Conectado' : conn === 'mock' ? 'Simulação' : conn === 'closed' ? 'Desconectado' : this.hadOpen ? 'Reconectando…' : 'Conectando…';
+      conn === 'open' ? i18n('Conectado') : conn === 'mock' ? i18n('Simulação') : conn === 'closed' ? i18n('Desconectado') : this.hadOpen ? i18n('Reconectando…') : i18n('Conectando…');
     setText(this.pillText, label);
     setVariant(this.pill, 'is-', conn);
     setTitle(
       this.pill,
       conn === 'mock'
-        ? 'Dados simulados no navegador (?mock=1)'
+        ? i18n('Dados simulados no navegador (?mock=1)')
         : conn === 'open'
-          ? 'Recebendo eventos do servidor em tempo real'
-          : 'Sem conexão com o servidor do Habblaud',
+          ? i18n('Recebendo eventos do servidor em tempo real')
+          : i18n('Sem conexão com o servidor do Habblaud'),
     );
     setHidden(this.demoBadge, !(conn === 'open' && snap?.meta.demo));
 
@@ -181,8 +182,8 @@ export class TopBar implements UiComponent {
     setTitle(
       waiting,
       answerable
-        ? `${WAITING_HINT}. ${answerable === 1 ? '1 pedido (permissão ou pergunta) dá' : `${answerable} pedidos (permissões ou perguntas) dão`} para responder por aqui: clique para ir até ${answerable === 1 ? 'ele' : 'cada um'} (P).`
-        : `${WAITING_HINT}. Clique para ir até o primeiro.`,
+        ? i18n`${WAITING_HINT}. ${answerable === 1 ? i18n('1 pedido (permissão ou pergunta) dá') : i18n`${answerable} pedidos (permissões ou perguntas) dão`} para responder por aqui: clique para ir até ${answerable === 1 ? i18n('ele') : i18n('cada um')} (P).`
+        : i18n`${WAITING_HINT}. Clique para ir até o primeiro.`,
     );
     this.renderShells(c.shells, now);
 
@@ -206,15 +207,15 @@ export class TopBar implements UiComponent {
     const agents = shellWaitingAgents(all, now);
     setText(refs.value, formatInt(n));
     setText(refs.label, n === 1 ? 'shell' : 'shells');
-    const who = agents.length === 1 ? agents[0].name : `${formatInt(agents.length)} agentes`;
-    setAttr(refs.el, 'aria-label', `${formatInt(n)} ${n === 1 ? 'shell rodando' : 'shells rodando'}; ${who} esperando. Ir até o próximo.`);
+    const who = agents.length === 1 ? agents[0].name : i18n`${formatInt(agents.length)} agentes`;
+    setAttr(refs.el, 'aria-label', i18n`${formatInt(n)} ${n === 1 ? i18n('shell rodando') : i18n('shells rodando')}; ${who} esperando. Ir até o próximo.`);
     // Dica: quem espera o quê, do que espera há mais tempo.
     const lines = agents.slice(0, 6).map((a) => {
       const w = shellWaitIn(a, all, now)!;
       return `${a.name}: ${shellLine(w, now).label} (${formatDuration(now - w.since)})`;
     });
-    if (agents.length > 6) lines.push(`… e mais ${agents.length - 6}`);
-    setTitle(refs.el, `Shells rodando: ${agents.length === 1 ? 'o agente espera' : 'os agentes esperam'} terminar.\n${lines.join('\n')}\nClique para ir até ${agents.length > 1 ? 'cada um' : 'ele'}.`);
+    if (agents.length > 6) lines.push(i18n`… e mais ${agents.length - 6}`);
+    setTitle(refs.el, i18n`Shells rodando: ${agents.length === 1 ? i18n('o agente espera') : i18n('os agentes esperam')} terminar.\n${lines.join('\n')}\nClique para ir até ${agents.length > 1 ? i18n('cada um') : i18n('ele')}.`);
   }
 
   private focusNextShell(): void {

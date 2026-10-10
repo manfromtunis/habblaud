@@ -5,6 +5,7 @@ import { h, setAttr, setHidden, setStyleVar, setText, setTitle, setVariant } fro
 import { WORDMARK } from './icons';
 import { shellDoneKind, shellLine, shellStage, statusLabel, type ShellWait } from './model';
 import { accountChipLabel, accountProvider, fallbackShort, showsProviderTag } from './provider';
+import { i18n } from '../../../shared/i18n';
 
 /**
  * Chip quadrado com a letra curta da conta ("C", "D") na cor da conta. Conta do Codex: o chip fica vazado (fundo
@@ -27,7 +28,7 @@ export function updateAccountChip(chip: HTMLElement, account: AccountInfo | unde
 
 /** Selo de texto "Codex" ao lado do nome da conta (onde há espaço: gaveta, terminal, cartão de uso, dica). */
 export function createProviderTag(extra = ''): HTMLElement {
-  return h('span', { class: `ui-prov${extra ? ` ${extra}` : ''}`, text: 'Codex', hidden: true, title: 'Agente do Codex (OpenAI)' });
+  return h('span', { class: `ui-prov${extra ? ` ${extra}` : ''}`, text: 'Codex', hidden: true, title: i18n('Agente do Codex (OpenAI)') });
 }
 
 /** Mostra o selo só para o Codex (e não repete quando o nome da conta já diz "Codex"). */
@@ -52,9 +53,9 @@ export function createRoleBadge(): HTMLElement {
 }
 
 export function updateRoleBadge(badge: HTMLElement, agent: Pick<AgentInfo, 'kind' | 'role' | 'background'>): void {
-  setText(badge, agent.kind === 'main' ? 'Principal' : agent.role || 'Subagente');
+  setText(badge, agent.kind === 'main' ? i18n('Principal') : agent.role || i18n('Subagente'));
   setVariant(badge, 'ui-role--', agent.kind);
-  setTitle(badge, agent.kind === 'main' ? 'Agente principal' : `Subagente: ${agent.role}${agent.background ? ' (em segundo plano)' : ''}`);
+  setTitle(badge, agent.kind === 'main' ? i18n('Agente principal') : i18n`Subagente: ${agent.role}${agent.background ? i18n(' (em segundo plano)') : ''}`);
 }
 
 /** Barra de progresso fina; `value` 0–1. */
@@ -70,7 +71,7 @@ export function updateProgress(bar: HTMLElement, done: number, total: number, pa
   setStyleVar(bar, '--p', `${pct}%`);
   setStyleVar(bar, '--pp', `${partialPct}%`);
   setAttr(bar, 'aria-valuenow', String(pct));
-  setAttr(bar, 'aria-valuetext', `${done} de ${total}`);
+  setAttr(bar, 'aria-valuetext', i18n`${done} de ${total}`);
   bar.classList.toggle('is-complete', total > 0 && done === total);
 }
 
@@ -93,7 +94,7 @@ function activityParts(el: HTMLElement): [HTMLElement, HTMLElement, HTMLElement,
   return el.children as unknown as [HTMLElement, HTMLElement, HTMLElement, HTMLElement];
 }
 
-export function updateActivityLine(el: HTMLElement, activity: Activity | undefined, fallback = 'Sem atividade ainda'): void {
+export function updateActivityLine(el: HTMLElement, activity: Activity | undefined, fallback = i18n('Sem atividade ainda')): void {
   const [icon, text, time, count] = activityParts(el);
   setText(icon, activity?.icon ?? '·');
   setText(text, activity?.text ?? fallback);
