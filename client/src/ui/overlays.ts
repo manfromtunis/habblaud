@@ -11,7 +11,7 @@ const DISCONNECTED_BANNER_MS = 8_000;
 
 function brandMark(size: number): HTMLElement {
   const mark = h('span', { class: 'ui-brand__mark' });
-  const img = h('img', { attrs: { src: '/assets/brand/logo-mark@4x.png', alt: '', width: size, height: size, draggable: 'false' } });
+  const img = h('img', { attrs: { src: '/assets/brand/bakchich.png', alt: '', width: size, height: size, draggable: 'false' } });
   img.addEventListener('error', () => {
     mark.innerHTML = FALLBACK_MARK;
   });

@@ -626,14 +626,13 @@
 .ui-brand__mark {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
 }
 
 .ui-brand__mark img {
-  width: 32px;
-  height: 32px;
-  image-rendering: pixelated;
+  width: 44px;
+  height: 44px;
 }
 
 .ui-brand__mark .ui-mark {
