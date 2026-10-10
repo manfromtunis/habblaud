@@ -17,6 +17,10 @@ do meio (0.**3**.0).
   **Configurações › Idioma**; os textos montados pelo servidor (atividades, avisos, terminal) seguem o idioma do
   sistema ou `HABBLAUD_LANG` (`pt-BR` ou `fr`), assim como os logs do servidor, os scripts de instalação
   (`mod:install`, `docker:up`…) e o modo demonstração. `npm run i18n:check` lista os textos ainda sem tradução.
+- **Interface em inglês.** Mais um idioma em cima do `tr()`: `shared/locales/en.ts` traduz os mesmos textos do
+  francês. O navegador em inglês já abre assim, e **English** aparece em **Configurações › Idioma**; no servidor,
+  `HABBLAUD_LANG=en` ou o sistema em inglês (`LANG=en_US.UTF-8`…). Datas e números usam o formato `en-GB`, que mantém
+  o relógio de 24 h. Sem idioma configurado (como no Docker), o servidor continua em português.
 
 ## [0.8.0] - 2026-10-09
 
