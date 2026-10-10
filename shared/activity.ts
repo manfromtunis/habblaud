@@ -1,6 +1,7 @@
 // Tradução de chamadas de ferramenta do Claude Code em atividades legíveis (PT-BR).
 // Código puro, usado pelo servidor (transcripts reais) e pelo simulador de demonstração.
 import type { ActivityKind, AskQuestion } from './types';
+import { i18n } from './i18n';
 
 export interface ActivityDescription {
   kind: ActivityKind;
@@ -84,7 +85,7 @@ const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|ico|heic)$/i;
  */
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   // Blocos de chave privada (PEM).
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, '[chave privada]'],
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, i18n('[chave privada]')],
   // Cabeçalhos com credenciais: Authorization, Cookie, X-Api-Key...
   [/\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token|private-token)(\s*:\s*)[^'"\n]+/gi, '$1$2***'],
   // Bearer/Basic/Token <valor> soltos.
@@ -338,8 +339,8 @@ function filesLabel(files: string[]): string | undefined {
   const names = files.filter(looksLikeFile).map((f) => basename(f) || f);
   if (!names.length) return undefined;
   if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]} e ${names[1]}`;
-  return `${names[0]} e mais ${names.length - 1}`;
+  if (names.length === 2) return i18n`${names[0]} e ${names[1]}`;
+  return i18n`${names[0]} e mais ${names.length - 1}`;
 }
 
 const GREP_VALUED = new Set(['-e', '-f', '-A', '-B', '-C', '-m', '-d', '-D', '--regexp', '--file', '--max-count', '--context', '--include', '--exclude', '--exclude-dir', '-g', '-t', '-T', '--glob', '--type', '--type-not', '-j', '--threads', '-M', '--max-columns']);
@@ -371,19 +372,19 @@ function describeHttp(args: string[]): string {
       break;
     }
   }
-  if (!target) return 'Fazendo uma requisição HTTP';
+  if (!target) return i18n('Fazendo uma requisição HTTP');
   let url: URL;
   try {
     url = new URL(/^https?:\/\//i.test(target) ? target : `http://${target}`);
   } catch {
-    return 'Fazendo uma requisição HTTP';
+    return i18n('Fazendo uma requisição HTTP');
   }
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (host === 'localhost' || host === '0.0.0.0' || host === '::1' || /^127\./.test(host)) {
     const path = `${url.port ? `:${url.port}` : ''}${url.pathname === '/' && !url.port ? '/' : url.pathname}`;
-    return `${url.pathname.startsWith('/api') ? 'Testando a API local' : 'Testando o servidor local'} (${truncate(path, 22)})`;
+    return `${url.pathname.startsWith('/api') ? i18n('Testando a API local') : i18n('Testando o servidor local')} (${truncate(path, 22)})`;
   }
-  return `Chamando ${host.replace(/^www\./, '')}`;
+  return i18n`Chamando ${host.replace(/^www\./, '')}`;
 }
 
 /** Descrições em português às vezes vêm prontas no `description` do Bash; em inglês, não servem como texto. */
@@ -398,28 +399,28 @@ export function looksPortuguese(s: string): boolean {
 const LANG: Record<string, string> = { node: 'Node', python: 'Python', python3: 'Python', ruby: 'Ruby', php: 'PHP', deno: 'Deno', bun: 'Bun', tsx: 'TypeScript', 'ts-node': 'TypeScript', perl: 'Perl' };
 
 const GIT_TEXT: Record<string, [string, string]> = {
-  commit: ['📦', 'Fazendo commit'],
-  push: ['🚀', 'Enviando commits (git push)'],
-  pull: ['⬇️', 'Atualizando do remoto (git pull)'],
-  fetch: ['⬇️', 'Buscando do remoto (git fetch)'],
-  checkout: ['🌿', 'Trocando de branch'],
-  switch: ['🌿', 'Trocando de branch'],
-  merge: ['🔀', 'Fazendo merge'],
-  rebase: ['🔀', 'Fazendo rebase'],
-  status: ['🌿', 'Conferindo o git status'],
-  diff: ['🌿', 'Conferindo as mudanças (diff)'],
-  show: ['🌿', 'Olhando um commit (git show)'],
-  log: ['🌿', 'Lendo o histórico do git'],
-  add: ['🌿', 'Preparando arquivos (git add)'],
-  stash: ['🌿', 'Guardando mudanças (stash)'],
-  clone: ['⬇️', 'Clonando repositório'],
-  branch: ['🌿', 'Conferindo as branches'],
-  worktree: ['🌿', 'Mexendo nas worktrees'],
-  reset: ['🌿', 'Desfazendo mudanças (git reset)'],
-  restore: ['🌿', 'Restaurando arquivos (git restore)'],
-  tag: ['🏷️', 'Mexendo nas tags'],
-  blame: ['🌿', 'Vendo quem mudou cada linha'],
-  'cherry-pick': ['🍒', 'Trazendo um commit (cherry-pick)'],
+  commit: ['📦', i18n('Fazendo commit')],
+  push: ['🚀', i18n('Enviando commits (git push)')],
+  pull: ['⬇️', i18n('Atualizando do remoto (git pull)')],
+  fetch: ['⬇️', i18n('Buscando do remoto (git fetch)')],
+  checkout: ['🌿', i18n('Trocando de branch')],
+  switch: ['🌿', i18n('Trocando de branch')],
+  merge: ['🔀', i18n('Fazendo merge')],
+  rebase: ['🔀', i18n('Fazendo rebase')],
+  status: ['🌿', i18n('Conferindo o git status')],
+  diff: ['🌿', i18n('Conferindo as mudanças (diff)')],
+  show: ['🌿', i18n('Olhando um commit (git show)')],
+  log: ['🌿', i18n('Lendo o histórico do git')],
+  add: ['🌿', i18n('Preparando arquivos (git add)')],
+  stash: ['🌿', i18n('Guardando mudanças (stash)')],
+  clone: ['⬇️', i18n('Clonando repositório')],
+  branch: ['🌿', i18n('Conferindo as branches')],
+  worktree: ['🌿', i18n('Mexendo nas worktrees')],
+  reset: ['🌿', i18n('Desfazendo mudanças (git reset)')],
+  restore: ['🌿', i18n('Restaurando arquivos (git restore)')],
+  tag: ['🏷️', i18n('Mexendo nas tags')],
+  blame: ['🌿', i18n('Vendo quem mudou cada linha')],
+  'cherry-pick': ['🍒', i18n('Trazendo um commit (cherry-pick)')],
 };
 
 const READER_VALUED: Record<string, ReadonlySet<string>> = {
@@ -446,54 +447,54 @@ function describeWords(w: string[], depth: number): ActivityDescription | undefi
   const mk = (kind: ActivityKind, icon: string, t: string) => make(kind, icon, t);
 
   if (/\b(vitest|jest|pytest|phpunit|mocha|ava|rspec)\b|\b(go|cargo|deno|bun)\s+test\b|playwright\s+test|\b(npm|pnpm|yarn|bun)\s+(run\s+)?test\b|\bnode\s+--test\b|-m\s+(pytest|unittest)\b/.test(text)) {
-    return mk('test', '🧪', 'Rodando testes');
+    return mk('test', '🧪', i18n('Rodando testes'));
   }
   if (prog === 'git') {
     let i = 0;
     while (i < args.length && args[i].startsWith('-')) i += args[i] === '-C' || args[i] === '-c' ? 2 : 1;
     const sub = args[i] ?? '';
-    const [icon, t] = GIT_TEXT[sub] ?? ['🌿', sub ? `git ${sub}` : 'Usando o git'];
+    const [icon, t] = GIT_TEXT[sub] ?? ['🌿', sub ? `git ${sub}` : i18n('Usando o git')];
     return mk('git', icon, t);
   }
   if (prog === 'gh') return mk('git', '🐙', `GitHub CLI: gh ${args.slice(0, 2).join(' ')}`.trim());
   if (/\b(npm|pnpm|yarn|bun)\s+(i|install|add|ci)\b|\bpip3?\s+install\b|\bbrew\s+install\b|\bcomposer\s+(install|require)\b|\bpoetry\s+(add|install)\b|\bcargo\s+add\b|\bgo\s+get\b|\buv\s+(add|sync|pip\s+install)\b/.test(text)) {
-    return mk('run', '📦', 'Instalando dependências');
+    return mk('run', '📦', i18n('Instalando dependências'));
   }
   if ((prog === 'tsc' && args.includes('--noEmit')) || /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(typecheck|type-check|check-types)\b/.test(text)) {
-    return mk('run', '🔍', 'Conferindo os tipos (TypeScript)');
+    return mk('run', '🔍', i18n('Conferindo os tipos (TypeScript)'));
   }
   if (/\b(npm|pnpm|yarn|bun)\s+(run\s+)?build\b|\bvite\s+build\b|^tsc\b|\bwebpack\b|\bcargo\s+build\b|\bgo\s+build\b|^make\b|\bgradle\b|\bmvn\b|\besbuild\b|\brollup\b/.test(text)) {
-    return mk('run', '🏗️', 'Compilando o projeto');
+    return mk('run', '🏗️', i18n('Compilando o projeto'));
   }
   if (/\b(npm|pnpm|yarn|bun)\s+(run\s+)?(dev|start|serve|preview)\b|^vite(\s|$)(?!build)|^(next|nuxt|astro)\s+dev\b|^expo\s+start\b|^nodemon\b|^tsx\s+watch\b/.test(text)) {
-    return mk('run', '▶️', /\bpreview\b/.test(text) ? 'Subindo o preview do build' : 'Subindo o servidor de dev');
+    return mk('run', '▶️', /\bpreview\b/.test(text) ? i18n('Subindo o preview do build') : i18n('Subindo o servidor de dev'));
   }
   if (/\b(eslint|prettier|ruff|black|biome|rubocop|phpcs|stylelint|oxlint)\b|\b(npm|pnpm|yarn)\s+(run\s+)?(lint|format)\b/.test(text)) {
-    return mk('run', '🧹', 'Rodando o linter');
+    return mk('run', '🧹', i18n('Rodando o linter'));
   }
-  if (/^(npm|pnpm|yarn|bun)$/.test(prog) && args[0] === 'run' && args[1]) return mk('run', '▶️', `Rodando o script ${args[1]}`);
+  if (/^(npm|pnpm|yarn|bun)$/.test(prog) && args[0] === 'run' && args[1]) return mk('run', '▶️', i18n`Rodando o script ${args[1]}`);
   if (prog === 'docker' || prog === 'docker-compose') return mk('run', '🐳', `Docker: ${args.filter((a) => !a.startsWith('-')).slice(0, 2).join(' ')}`.trim());
-  if (/^(kubectl|helm|terraform|aws|gcloud|az|flyctl|fly|vercel|wrangler|netlify|railway)$/.test(prog)) return mk('run', '☁️', `Mexendo na nuvem (${prog})`);
+  if (/^(kubectl|helm|terraform|aws|gcloud|az|flyctl|fly|vercel|wrangler|netlify|railway)$/.test(prog)) return mk('run', '☁️', i18n`Mexendo na nuvem (${prog})`);
   if (/^(curl|wget|http|https|xh)$/.test(prog)) return mk('web', '🌐', describeHttp(args));
-  if (/^(psql|mysql|sqlite3|redis-cli|mongosh|mongo|duckdb)$/.test(prog)) return mk('run', '🗄️', 'Consultando o banco de dados');
+  if (/^(psql|mysql|sqlite3|redis-cli|mongosh|mongo|duckdb)$/.test(prog)) return mk('run', '🗄️', i18n('Consultando o banco de dados'));
   if (/^(rg|grep|egrep|fgrep|ag|ack|git-grep)$/.test(prog)) {
     const e = args.findIndex((a) => a === '-e' || a === '--regexp');
     const pat = e >= 0 ? args[e + 1] : positionals(args, GREP_VALUED)[0];
     const shown = pat?.replace(/\\\|/g, ' | ').replace(/\\([.()[\]{}+?*^$])/g, '$1');
-    return mk('search', '🔎', shown ? `Buscando “${truncate(shown, 24)}”` : 'Buscando no código');
+    return mk('search', '🔎', shown ? i18n`Buscando “${truncate(shown, 24)}”` : i18n('Buscando no código'));
   }
-  if (/^(ls|find|tree|fd|du|df|eza|exa)$/.test(prog)) return mk('read', '📂', 'Explorando pastas');
-  if (prog === 'cd' || prog === 'pushd') return mk('read', '📂', 'Mudando de pasta');
+  if (/^(ls|find|tree|fd|du|df|eza|exa)$/.test(prog)) return mk('read', '📂', i18n('Explorando pastas'));
+  if (prog === 'cd' || prog === 'pushd') return mk('read', '📂', i18n('Mudando de pasta'));
   if (prog === 'cat' || prog === 'tee' || prog === 'echo' || prog === 'printf') {
     // `cat > arquivo <<EOF`, `cat <<'EOF' >> arquivo`, `echo x > arquivo`, `tee [-a] arquivo`: escrevendo.
     const written = prog === 'tee' ? positionals(args)[0] : stdoutTarget(args);
-    if (written && looksLikeFile(written) && written !== '/dev/null') return mk('write', '📝', `Escrevendo ${basename(written)}`);
-    if (prog === 'tee') return mk('write', '📝', 'Escrevendo um arquivo');
-    if (prog !== 'cat') return mk('run', '💬', 'Mostrando texto no terminal');
+    if (written && looksLikeFile(written) && written !== '/dev/null') return mk('write', '📝', i18n`Escrevendo ${basename(written)}`);
+    if (prog === 'tee') return mk('write', '📝', i18n('Escrevendo um arquivo'));
+    if (prog !== 'cat') return mk('run', '💬', i18n('Mostrando texto no terminal'));
   }
   if (/^(sed|gsed|perl)$/.test(prog) && args.some((a) => /^-i|^--in-place|^-pi/.test(a))) {
     const last = positionals(args, new Set(['-e', '-f'])).pop();
-    return mk('edit', '✏️', last && looksLikeFile(last) && /[./]/.test(last) ? `Editando ${basename(last)}` : 'Editando via terminal');
+    return mk('edit', '✏️', last && looksLikeFile(last) && /[./]/.test(last) ? i18n`Editando ${basename(last)}` : i18n('Editando via terminal'));
   }
   if (/^(cat|head|tail|less|more|bat|nl|sed|gsed|awk|gawk|jq|wc|strings|xxd|od|hexdump|column|sort|uniq|cut)$/.test(prog)) {
     // jq --arg nome valor: dois valores.
@@ -504,45 +505,45 @@ function describeWords(w: string[], depth: number): ActivityDescription | undefi
     const label = filesLabel(files);
     if (prog === 'wc') {
       const n = files.filter(looksLikeFile).length;
-      return mk('read', '🔢', n > 2 ? `Contando linhas de ${n} arquivos` : label ? `Contando linhas de ${label}` : 'Contando linhas');
+      return mk('read', '🔢', n > 2 ? i18n`Contando linhas de ${n} arquivos` : label ? i18n`Contando linhas de ${label}` : i18n('Contando linhas'));
     }
-    if (prog === 'tail' && args.some((a) => a === '-f' || a === '-F')) return mk('read', '📜', label ? `Acompanhando ${label}` : 'Acompanhando um log');
-    if (prog === 'jq' && !label) return mk('read', '🔎', 'Filtrando JSON');
+    if (prog === 'tail' && args.some((a) => a === '-f' || a === '-F')) return mk('read', '📜', label ? i18n`Acompanhando ${label}` : i18n('Acompanhando um log'));
+    if (prog === 'jq' && !label) return mk('read', '🔎', i18n('Filtrando JSON'));
     if (/^(sort|uniq|cut|column)$/.test(prog) && !label) return undefined;
-    return mk('read', '📖', label ? `Lendo ${label}` : 'Lendo arquivo');
+    return mk('read', '📖', label ? i18n`Lendo ${label}` : i18n('Lendo arquivo'));
   }
-  if (/^(rm|mv|cp|mkdir|rmdir|touch|chmod|chown|ln|rsync|tar|zip|unzip|gzip|gunzip|xattr)$/.test(prog)) return mk('run', '🗂️', 'Organizando arquivos');
-  if (prog === 'sleep' || prog === 'wait') return mk('wait', '⏳', 'Aguardando um pouco');
-  if (prog === 'open' || prog === 'xdg-open') return mk('run', '🖥️', 'Abrindo no computador');
-  if (/^(code|cursor|subl|vim|nvim|nano|emacs)$/.test(prog)) return mk('edit', '✏️', 'Abrindo no editor');
-  if (/^(pkill|kill|killall)$/.test(prog)) return mk('run', '🛑', 'Parando um processo');
+  if (/^(rm|mv|cp|mkdir|rmdir|touch|chmod|chown|ln|rsync|tar|zip|unzip|gzip|gunzip|xattr)$/.test(prog)) return mk('run', '🗂️', i18n('Organizando arquivos'));
+  if (prog === 'sleep' || prog === 'wait') return mk('wait', '⏳', i18n('Aguardando um pouco'));
+  if (prog === 'open' || prog === 'xdg-open') return mk('run', '🖥️', i18n('Abrindo no computador'));
+  if (/^(code|cursor|subl|vim|nvim|nano|emacs)$/.test(prog)) return mk('edit', '✏️', i18n('Abrindo no editor'));
+  if (/^(pkill|kill|killall)$/.test(prog)) return mk('run', '🛑', i18n('Parando um processo'));
   if (prog === 'lsof') {
     const port = args.map((a) => /^(?:-i)?(?:tcp)?:(\d{2,5})$/i.exec(a)?.[1]).find(Boolean);
-    return mk('run', '🔌', port ? `Conferindo quem usa a porta ${port}` : 'Conferindo processos e portas');
+    return mk('run', '🔌', port ? i18n`Conferindo quem usa a porta ${port}` : i18n('Conferindo processos e portas'));
   }
-  if (/^(ps|pgrep|top|htop|jobs)$/.test(prog)) return mk('run', '🔍', 'Conferindo processos');
-  if (/^(which|whereis|type)$/.test(prog) || (prog === 'command' && /^-[vV]$/.test(args[0] ?? ''))) return mk('search', '🔎', 'Procurando um programa');
-  if (/^(diff|cmp|comm|colordiff|delta)$/.test(prog)) return mk('read', '🔀', 'Comparando arquivos');
-  if (prog === 'date') return mk('run', '🕒', 'Conferindo a data e a hora');
-  if (prog === 'env' || prog === 'printenv') return mk('run', '🔍', 'Conferindo variáveis de ambiente');
-  if (/^(stat|file|md5|md5sum|shasum|sha256sum|realpath|readlink)$/.test(prog)) return mk('read', '🔍', 'Conferindo um arquivo');
-  if (prog === 'claude') return mk('run', '🤖', 'Rodando o Claude Code');
-  if (/^(pbcopy|pbpaste)$/.test(prog)) return mk('run', '📋', 'Usando a área de transferência');
+  if (/^(ps|pgrep|top|htop|jobs)$/.test(prog)) return mk('run', '🔍', i18n('Conferindo processos'));
+  if (/^(which|whereis|type)$/.test(prog) || (prog === 'command' && /^-[vV]$/.test(args[0] ?? ''))) return mk('search', '🔎', i18n('Procurando um programa'));
+  if (/^(diff|cmp|comm|colordiff|delta)$/.test(prog)) return mk('read', '🔀', i18n('Comparando arquivos'));
+  if (prog === 'date') return mk('run', '🕒', i18n('Conferindo a data e a hora'));
+  if (prog === 'env' || prog === 'printenv') return mk('run', '🔍', i18n('Conferindo variáveis de ambiente'));
+  if (/^(stat|file|md5|md5sum|shasum|sha256sum|realpath|readlink)$/.test(prog)) return mk('read', '🔍', i18n('Conferindo um arquivo'));
+  if (prog === 'claude') return mk('run', '🤖', i18n('Rodando o Claude Code'));
+  if (/^(pbcopy|pbpaste)$/.test(prog)) return mk('run', '📋', i18n('Usando a área de transferência'));
   if (/^(bash|sh|zsh|fish)$/.test(prog)) {
     const c = args.indexOf('-c');
     if (c >= 0 && args[c + 1] && depth < 3) return describeLine(args[c + 1], depth + 1).desc;
     const script = positionals(args).find(looksLikeFile);
-    return mk('run', '▶️', script ? `Executando ${basename(script)}` : 'Executando um script de shell');
+    return mk('run', '▶️', script ? i18n`Executando ${basename(script)}` : i18n('Executando um script de shell'));
   }
   if (/^(node|python3?|ruby|php|deno|bun|tsx|ts-node|perl|java)$/.test(prog) || (prog === 'go' && args[0] === 'run')) {
     // Ignora flags, redirecionamentos/heredoc e código inline (-e/-c '...').
     const list = withoutRedirects(prog === 'go' ? args.slice(1) : args);
     const script = list.find((t, i) => !t.startsWith('-') && !/^-[ecpr]$|^--(eval|print|import|require|loader)$/.test(list[i - 1] ?? '') && /[./]/.test(t) && !/^\d+(\.\d+)*$/.test(t));
-    if (script && !/^(-m|-c)$/.test(list[0] ?? '')) return mk('run', '▶️', `Executando ${basename(script)}`);
-    if (list[0] === '-m' && list[1]) return mk('run', '▶️', `Executando o módulo ${list[1]}`);
-    return mk('run', '▶️', `Executando um script ${LANG[prog] ?? prog}`);
+    if (script && !/^(-m|-c)$/.test(list[0] ?? '')) return mk('run', '▶️', i18n`Executando ${basename(script)}`);
+    if (list[0] === '-m' && list[1]) return mk('run', '▶️', i18n`Executando o módulo ${list[1]}`);
+    return mk('run', '▶️', i18n`Executando um script ${LANG[prog] ?? prog}`);
   }
-  if (/^(\.{0,2}\/|~\/)/.test(w[0]) || /\.(sh|bash|zsh|py|rb|mjs|js|ts)$/.test(w[0])) return mk('run', '▶️', `Executando ${prog}`);
+  if (/^(\.{0,2}\/|~\/)/.test(w[0]) || /\.(sh|bash|zsh|py|rb|mjs|js|ts)$/.test(w[0])) return mk('run', '▶️', i18n`Executando ${prog}`);
   return undefined;
 }
 
@@ -589,7 +590,7 @@ function describeLine(text: string, depth: number): LineDescription {
       const body = /^(?:do|then)\b\s*(.*)$/s.exec(rest.replace(/^.*?;\s*(?=(do|then)\b)/s, ''))?.[1]?.trim();
       const next = [body, ...lines.slice(li + 1)].filter((l) => l && l.trim() && !/^(done|fi|else|esac)\b/.test(l.trim())).join('\n');
       const inner = next ? describeLine(next, depth + 1) : {};
-      return inner.desc ? inner : { desc: make('run', '🔁', 'Repetindo um comando em lote') };
+      return inner.desc ? inner : { desc: make('run', '🔁', i18n('Repetindo um comando em lote')) };
     }
     return { desc: describeWords(main, depth), prog: main[0] };
   }
@@ -614,7 +615,7 @@ export function describeCommand(command: string, description?: string): Activity
   const desc = description?.trim();
   if (desc && looksPortuguese(desc)) return make('run', '💻', desc, detail);
   const prog = basename(found.prog ?? '');
-  const text = /^[A-Za-z][\w.+-]{0,23}$/.test(prog) ? `Rodando ${prog}` : 'Rodando um comando no terminal';
+  const text = /^[A-Za-z][\w.+-]{0,23}$/.test(prog) ? i18n`Rodando ${prog}` : i18n('Rodando um comando no terminal');
   return make('run', '💻', text, desc ? `${desc} — ${detail}` : detail);
 }
 
@@ -632,17 +633,17 @@ function describeMcp(name: string, input: Record<string, unknown>): ActivityDesc
   const srv = server.replace(/^claude_ai_/, '');
   if (/playwright|chrome|browser|puppeteer/i.test(srv)) {
     const url = str(input.url);
-    if (/navigate/.test(tool)) return make('browser', '🧭', url ? `Abrindo ${domainOf(url)}` : 'Navegando no navegador', url);
-    if (/screenshot/.test(tool)) return make('browser', '📸', 'Tirando print da página');
-    if (/click/.test(tool)) return make('browser', '🖱️', 'Clicando na página');
-    if (/type|fill|form/.test(tool)) return make('browser', '⌨️', 'Preenchendo formulário');
-    if (/snapshot|read|get_page|find/.test(tool)) return make('browser', '🧭', 'Lendo a página');
-    return make('browser', '🧭', `Navegador: ${humanize(tool)}`);
+    if (/navigate/.test(tool)) return make('browser', '🧭', url ? i18n`Abrindo ${domainOf(url)}` : i18n('Navegando no navegador'), url);
+    if (/screenshot/.test(tool)) return make('browser', '📸', i18n('Tirando print da página'));
+    if (/click/.test(tool)) return make('browser', '🖱️', i18n('Clicando na página'));
+    if (/type|fill|form/.test(tool)) return make('browser', '⌨️', i18n('Preenchendo formulário'));
+    if (/snapshot|read|get_page|find/.test(tool)) return make('browser', '🧭', i18n('Lendo a página'));
+    return make('browser', '🧭', i18n`Navegador: ${humanize(tool)}`);
   }
   if (/github/i.test(srv)) return make('mcp', '🐙', `GitHub: ${humanize(tool)}`);
-  if (/gmail|mail/i.test(srv)) return make('mcp', '✉️', `E-mail: ${humanize(tool)}`);
+  if (/gmail|mail/i.test(srv)) return make('mcp', '✉️', i18n`E-mail: ${humanize(tool)}`);
   if (/drive|docs|notion|confluence/i.test(srv)) return make('mcp', '📄', `${srv}: ${humanize(tool)}`);
-  if (/sql|postgres|mysql|mongo|elastic|redis|db/i.test(srv)) return make('mcp', '🗄️', `Banco (${srv}): ${humanize(tool)}`);
+  if (/sql|postgres|mysql|mongo|elastic|redis|db/i.test(srv)) return make('mcp', '🗄️', i18n`Banco (${srv}): ${humanize(tool)}`);
   return make('mcp', '🔌', `${srv}: ${humanize(tool)}`);
 }
 
@@ -653,117 +654,117 @@ export function describeTool(name: string, rawInput: unknown): ActivityDescripti
 
   switch (name) {
     case 'Read':
-      if (IMAGE_EXT.test(file)) return make('read', '🖼️', `Olhando ${basename(file)}`, file);
-      if (/\.pdf$/i.test(file)) return make('read', '📕', `Lendo ${basename(file)}`, file);
-      return make('read', '📖', file ? `Lendo ${basename(file)}` : 'Lendo arquivo', file);
+      if (IMAGE_EXT.test(file)) return make('read', '🖼️', i18n`Olhando ${basename(file)}`, file);
+      if (/\.pdf$/i.test(file)) return make('read', '📕', i18n`Lendo ${basename(file)}`, file);
+      return make('read', '📖', file ? i18n`Lendo ${basename(file)}` : i18n('Lendo arquivo'), file);
     case 'Edit':
     case 'MultiEdit':
-      return make('edit', '✏️', file ? `Editando ${basename(file)}` : 'Editando arquivo', file);
+      return make('edit', '✏️', file ? i18n`Editando ${basename(file)}` : i18n('Editando arquivo'), file);
     case 'Write':
-      return make('write', '📝', file ? `Escrevendo ${basename(file)}` : 'Escrevendo arquivo', file);
+      return make('write', '📝', file ? i18n`Escrevendo ${basename(file)}` : i18n('Escrevendo arquivo'), file);
     case 'NotebookEdit':
-      return make('edit', '📓', `Editando notebook ${basename(file)}`, file);
+      return make('edit', '📓', i18n`Editando notebook ${basename(file)}`, file);
     case 'Glob':
-      return make('search', '🔎', `Procurando ${truncate(str(input.pattern) || 'arquivos', 30)}`, str(input.pattern));
+      return make('search', '🔎', i18n`Procurando ${truncate(str(input.pattern) || i18n('arquivos'), 30)}`, str(input.pattern));
     case 'Grep': {
       const pat = str(input.pattern);
-      return make('search', '🔎', pat ? `Buscando “${truncate(pat, 26)}”` : 'Buscando no código', pat);
+      return make('search', '🔎', pat ? i18n`Buscando “${truncate(pat, 26)}”` : i18n('Buscando no código'), pat);
     }
     case 'LS':
-      return make('read', '📂', `Listando ${basename(file) || 'pasta'}`, file);
+      return make('read', '📂', i18n`Listando ${basename(file) || i18n('pasta')}`, file);
     case 'Bash':
       return describeCommand(str(input.command), str(input.description));
     case 'BashOutput':
     case 'TaskOutput':
-      return make('run', '📟', 'Conferindo saída do terminal');
+      return make('run', '📟', i18n('Conferindo saída do terminal'));
     case 'Monitor':
-      return make('run', '📟', 'Monitorando um processo', str(input.description) || str(input.command));
+      return make('run', '📟', i18n('Monitorando um processo'), str(input.description) || str(input.command));
     case 'KillShell':
     case 'KillBash':
     case 'TaskStop':
-      return make('run', '🛑', 'Parando um processo');
+      return make('run', '🛑', i18n('Parando um processo'));
     case 'WebSearch': {
       const q = str(input.query);
-      return make('web', '🌐', q ? `Pesquisando “${truncate(q, 28)}”` : 'Pesquisando na web', q);
+      return make('web', '🌐', q ? i18n`Pesquisando “${truncate(q, 28)}”` : i18n('Pesquisando na web'), q);
     }
     case 'WebFetch': {
       const url = str(input.url);
-      return make('web', '🌐', url ? `Lendo ${domainOf(url)}` : 'Lendo uma página', url);
+      return make('web', '🌐', url ? i18n`Lendo ${domainOf(url)}` : i18n('Lendo uma página'), url);
     }
     case 'TodoWrite': {
       const todos = Array.isArray(input.todos) ? (input.todos as Array<Record<string, unknown>>) : [];
       const done = todos.filter((t) => t.status === 'completed').length;
-      return make('plan', '🗒️', 'Atualizando a lista de tarefas', todos.length ? `${done}/${todos.length} concluídas` : undefined);
+      return make('plan', '🗒️', i18n('Atualizando a lista de tarefas'), todos.length ? i18n`${done}/${todos.length} concluídas` : undefined);
     }
     case 'TaskCreate':
-      return make('plan', '🗒️', `Nova tarefa: ${str(input.subject) || 'sem título'}`, str(input.description));
+      return make('plan', '🗒️', i18n`Nova tarefa: ${str(input.subject) || i18n('sem título')}`, str(input.description));
     case 'TaskUpdate': {
       const st = str(input.status);
-      if (st === 'completed') return make('plan', '✅', `Concluiu a tarefa #${str(input.taskId)}`);
-      if (st === 'in_progress') return make('plan', '🗒️', `Começou a tarefa #${str(input.taskId)}`);
-      return make('plan', '🗒️', `Atualizando a tarefa #${str(input.taskId)}`);
+      if (st === 'completed') return make('plan', '✅', i18n`Concluiu a tarefa #${str(input.taskId)}`);
+      if (st === 'in_progress') return make('plan', '🗒️', i18n`Começou a tarefa #${str(input.taskId)}`);
+      return make('plan', '🗒️', i18n`Atualizando a tarefa #${str(input.taskId)}`);
     }
     case 'TaskList':
     case 'TaskGet':
-      return make('plan', '🗒️', 'Revisando as tarefas');
+      return make('plan', '🗒️', i18n('Revisando as tarefas'));
     case 'EnterPlanMode':
-      return make('plan', '🧭', 'Entrando no modo de planejamento');
+      return make('plan', '🧭', i18n('Entrando no modo de planejamento'));
     case 'ExitPlanMode':
-      return make('plan', '🧭', 'Apresentando o plano');
+      return make('plan', '🧭', i18n('Apresentando o plano'));
     case 'Agent':
     case 'Task': {
       const d = str(input.description);
       const type = str(input.subagent_type);
-      return make('delegate', '👥', d ? `Delegando: ${d}` : 'Chamando um subagente', [type, str(input.prompt)].filter(Boolean).join(' — '));
+      return make('delegate', '👥', d ? i18n`Delegando: ${d}` : i18n('Chamando um subagente'), [type, str(input.prompt)].filter(Boolean).join(' — '));
     }
     case 'Workflow':
-      return make('delegate', '🕸️', 'Orquestrando um workflow');
+      return make('delegate', '🕸️', i18n('Orquestrando um workflow'));
     case 'StructuredOutput':
-      return make('communicate', '📤', 'Entregando o resultado');
+      return make('communicate', '📤', i18n('Entregando o resultado'));
     case 'ListAgents':
-      return make('communicate', '👥', 'Conferindo a equipe');
+      return make('communicate', '👥', i18n('Conferindo a equipe'));
     case 'SendMessage':
-      return make('communicate', '💬', `Mensagem para ${str(input.to) || 'outro agente'}`, str(input.message));
+      return make('communicate', '💬', i18n`Mensagem para ${str(input.to) || i18n('outro agente')}`, str(input.message));
     case 'AskUserQuestion': {
       const qs = Array.isArray(input.questions) ? (input.questions as Array<Record<string, unknown>>) : [];
       const questions = askQuestions(qs);
-      return { ...make('ask', '❓', 'Fazendo uma pergunta a você', qs[0] ? str(qs[0].question) : undefined), ...(questions.length ? { questions } : {}) };
+      return { ...make('ask', '❓', i18n('Fazendo uma pergunta a você'), qs[0] ? str(qs[0].question) : undefined), ...(questions.length ? { questions } : {}) };
     }
     case 'Skill':
-      return make('skill', '🧩', `Usando a skill ${str(input.skill) || str(input.command)}`);
+      return make('skill', '🧩', i18n`Usando a skill ${str(input.skill) || str(input.command)}`);
     case 'SlashCommand':
-      return make('skill', '⌨️', `Rodando ${str(input.command)}`);
+      return make('skill', '⌨️', i18n`Rodando ${str(input.command)}`);
     case 'ToolSearch':
-      return make('other', '🧰', 'Procurando ferramentas');
+      return make('other', '🧰', i18n('Procurando ferramentas'));
     case 'ListMcpResourcesTool':
     case 'ReadMcpResourceTool':
-      return make('mcp', '🔌', 'Lendo recursos MCP');
+      return make('mcp', '🔌', i18n('Lendo recursos MCP'));
     case 'Artifact':
-      return make('other', '🖼️', 'Publicando uma página');
+      return make('other', '🖼️', i18n('Publicando uma página'));
     case 'ArtifactData':
     case 'ArtifactComments':
-      return make('other', '🖼️', 'Atualizando uma página publicada');
+      return make('other', '🖼️', i18n('Atualizando uma página publicada'));
     case 'CronCreate':
     case 'CronDelete':
     case 'CronList':
     case 'ScheduleWakeup':
     case 'RemoteTrigger':
-      return make('plan', '⏰', 'Agendando uma tarefa');
+      return make('plan', '⏰', i18n('Agendando uma tarefa'));
     case 'EnterWorktree':
     case 'ExitWorktree':
-      return make('git', '🌿', 'Trocando de worktree');
+      return make('git', '🌿', i18n('Trocando de worktree'));
     case 'PushNotification':
     case 'SendUserFile':
-      return make('communicate', '📣', 'Enviando algo para você');
+      return make('communicate', '📣', i18n('Enviando algo para você'));
     default:
       if (name.startsWith('mcp__')) return describeMcp(name, input);
-      return make('other', '🛠️', `Usando ${name}`);
+      return make('other', '🛠️', i18n`Usando ${name}`);
   }
 }
 
 /** Atividade para um prompt do usuário. */
 export function describePrompt(text: string): ActivityDescription {
-  return make('prompt', '📨', `Nova tarefa: “${truncate(text, 30)}”`, text);
+  return make('prompt', '📨', i18n`Nova tarefa: “${truncate(text, 30)}”`, text);
 }
 
 export function formatDuration(ms: number): string {
@@ -799,8 +800,8 @@ export function describeShellJob(name: string, rawInput: unknown): { label: stri
   const description = str(input.description).trim();
   let label: string;
   if (description) label = truncate(maskSecrets(description.slice(0, MAX_TEXT * 8)), MAX_TEXT);
-  else if (kind === 'monitor') label = ws ? `Escutando ${domainOf(ws)}` : 'Monitorando um processo';
-  else label = command ? describeCommand(command).text : 'Comando no terminal';
+  else if (kind === 'monitor') label = ws ? i18n`Escutando ${domainOf(ws)}` : i18n('Monitorando um processo');
+  else label = command ? describeCommand(command).text : i18n('Comando no terminal');
   const out: { label: string; command?: string; kind: 'shell' | 'monitor' } = { label, kind };
   if (command) out.command = truncate(maskSecrets(command.slice(0, MAX_DETAIL * 4)), MAX_DETAIL);
   return out;
@@ -814,22 +815,22 @@ function fitLabel(prefix: string, label: string | undefined, suffix = ''): strin
 }
 
 export const SPECIAL = {
-  think: (): ActivityDescription => make('think', '💭', 'Pensando…'),
-  respond: (text?: string): ActivityDescription => make('respond', '💬', 'Escrevendo a resposta', text),
-  turnDone: (ms?: number): ActivityDescription => make('done', '✅', ms ? `Concluiu em ${formatDuration(ms)}` : 'Concluiu'),
-  error: (tool?: string, detail?: string): ActivityDescription => make('error', '⚠️', tool ? `Erro em ${tool}` : 'Algo deu errado', detail),
-  interrupted: (): ActivityDescription => make('wait', '✋', 'Interrompido por você'),
-  compact: (): ActivityDescription => make('compact', '🧹', 'Organizando a memória (compactando)'),
-  waiting: (reason?: string): ActivityDescription => make('wait', '✋', reason ? `Precisa de você: ${reason}` : 'Precisa de você'),
-  backgroundResult: (summary?: string): ActivityDescription => make('other', '📬', 'Recebeu resultado em segundo plano', summary),
-  apiRetry: (): ActivityDescription => make('wait', '🔁', 'Instabilidade na API, tentando de novo'),
-  rejected: (tool?: string): ActivityDescription => make('wait', '🚫', tool ? `Você recusou: ${tool}` : 'Você recusou a ação'),
-  cleared: (): ActivityDescription => make('compact', '🧽', 'Começou uma conversa nova (/clear)'),
-  supervising: (): ActivityDescription => make('delegate', '👥', 'Acompanhando os subagentes'),
-  answered: (question?: string): ActivityDescription => make('ask', '💬', 'Recebeu a sua resposta', question),
+  think: (): ActivityDescription => make('think', '💭', i18n('Pensando…')),
+  respond: (text?: string): ActivityDescription => make('respond', '💬', i18n('Escrevendo a resposta'), text),
+  turnDone: (ms?: number): ActivityDescription => make('done', '✅', ms ? i18n`Concluiu em ${formatDuration(ms)}` : i18n('Concluiu')),
+  error: (tool?: string, detail?: string): ActivityDescription => make('error', '⚠️', tool ? i18n`Erro em ${tool}` : i18n('Algo deu errado'), detail),
+  interrupted: (): ActivityDescription => make('wait', '✋', i18n('Interrompido por você')),
+  compact: (): ActivityDescription => make('compact', '🧹', i18n('Organizando a memória (compactando)')),
+  waiting: (reason?: string): ActivityDescription => make('wait', '✋', reason ? i18n`Precisa de você: ${reason}` : i18n('Precisa de você')),
+  backgroundResult: (summary?: string): ActivityDescription => make('other', '📬', i18n('Recebeu resultado em segundo plano'), summary),
+  apiRetry: (): ActivityDescription => make('wait', '🔁', i18n('Instabilidade na API, tentando de novo')),
+  rejected: (tool?: string): ActivityDescription => make('wait', '🚫', tool ? i18n`Você recusou: ${tool}` : i18n('Você recusou a ação')),
+  cleared: (): ActivityDescription => make('compact', '🧽', i18n('Começou uma conversa nova (/clear)')),
+  supervising: (): ActivityDescription => make('delegate', '👥', i18n('Acompanhando os subagentes')),
+  answered: (question?: string): ActivityDescription => make('ask', '💬', i18n('Recebeu a sua resposta'), question),
   /** Balão do status 'shell': "Esperando o shell: <rótulo>" (ou "Esperando 2 shells: ..."). */
   waitingShell: (label?: string, n = 1, detail?: string): MarkedDescription => ({
-    ...make('wait', '⏳', fitLabel(n > 1 ? `Esperando ${n} shells: ` : 'Esperando o shell: ', label), detail),
+    ...make('wait', '⏳', fitLabel(n > 1 ? i18n`Esperando ${n} shells: ` : i18n('Esperando o shell: '), label), detail),
     tool: SHELL_WAIT_TOOL,
   }),
   /**
@@ -837,22 +838,22 @@ export const SPECIAL = {
    * falha "Shell falhou: <rótulo>" e morto "Shell interrompido: <rótulo>" (os dois com `error`).
    */
   shellDone: (label: string | undefined, outcome: ShellOutcome, ms?: number, detail?: string): MarkedDescription => {
-    if (outcome === 'failed') return { ...make('run', '❌', fitLabel('Shell falhou: ', label), detail), tool: SHELL_DONE_TOOL, error: true };
-    if (outcome === 'killed') return { ...make('run', '🛑', fitLabel('Shell interrompido: ', label), detail), tool: SHELL_DONE_TOOL, error: true };
+    if (outcome === 'failed') return { ...make('run', '❌', fitLabel(i18n('Shell falhou: '), label), detail), tool: SHELL_DONE_TOOL, error: true };
+    if (outcome === 'killed') return { ...make('run', '🛑', fitLabel(i18n('Shell interrompido: '), label), detail), tool: SHELL_DONE_TOOL, error: true };
     const took = ms !== undefined && ms >= 1_000 ? ` (${formatDuration(ms)})` : '';
-    return { ...make('run', '✅', fitLabel('Shell terminou: ', label, took), detail), tool: SHELL_DONE_TOOL };
+    return { ...make('run', '✅', fitLabel(i18n('Shell terminou: '), label, took), detail), tool: SHELL_DONE_TOOL };
   },
 } as const;
 
 /** Traduz o `waitingFor` do registro de sessões do Claude Code. */
 export function describeWaitingFor(raw: string | undefined): string {
-  if (!raw) return 'responder no terminal';
+  if (!raw) return i18n('responder no terminal');
   const r = raw.toLowerCase();
-  if (r === 'input needed') return 'responder uma pergunta';
-  if (r === 'worker request') return 'aprovar o pedido de um worker';
-  if (r === 'sandbox request') return 'aprovar acesso do sandbox';
-  if (r === 'dialog open') return 'fechar um diálogo aberto';
-  if (/permission|approve|allow/.test(r)) return 'aprovar uma permissão';
-  if (/trust/.test(r)) return 'confiar nesta pasta';
+  if (r === 'input needed') return i18n('responder uma pergunta');
+  if (r === 'worker request') return i18n('aprovar o pedido de um worker');
+  if (r === 'sandbox request') return i18n('aprovar acesso do sandbox');
+  if (r === 'dialog open') return i18n('fechar um diálogo aberto');
+  if (/permission|approve|allow/.test(r)) return i18n('aprovar uma permissão');
+  if (/trust/.test(r)) return i18n('confiar nesta pasta');
   return truncate(raw, 40);
 }

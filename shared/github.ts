@@ -3,6 +3,7 @@
 // server/sources/github.ts) e pelo simulador de demonstração.
 import { maskSecrets, truncate, type MarkedDescription } from './activity';
 import type { NoticeLevel, RoomEffect } from './types';
+import { i18n } from './i18n';
 
 export type GitHubEventKind = 'pr_opened' | 'pr_merged' | 'push' | 'ci_failed' | 'ci_passed' | 'release';
 
@@ -53,17 +54,17 @@ export function bannerOf(ev: GitHubEvent): string | undefined {
   const pr = ev.number !== undefined ? `PR #${ev.number}` : 'PR';
   switch (ev.kind) {
     case 'pr_opened':
-      return `${pr} aberto!`;
+      return i18n`${pr} aberto!`;
     case 'pr_merged':
-      return `${pr} mergeado!`;
+      return i18n`${pr} mergeado!`;
     case 'release':
-      return ev.tag ? clean(`Release ${ev.tag} no ar!`, MAX_BANNER) : 'Release no ar!';
+      return ev.tag ? clean(i18n`Release ${ev.tag} no ar!`, MAX_BANNER) : i18n('Release no ar!');
     case 'ci_failed': {
       const where = ciWhere(ev);
-      return clean(where ? `CI falhou (${where})` : 'CI falhou', MAX_BANNER);
+      return clean(where ? i18n`CI falhou (${where})` : i18n('CI falhou'), MAX_BANNER);
     }
     case 'ci_passed':
-      return 'CI verde de novo!';
+      return i18n('CI verde de novo!');
     default:
       return undefined;
   }
@@ -84,7 +85,7 @@ export interface GitHubEventText {
 
 /** Textos em PT-BR de um evento: aviso e atividade. */
 export function describeGitHubEvent(ev: GitHubEvent, agentName: string, roomName: string): GitHubEventText {
-  const pr = ev.number !== undefined ? `o PR #${ev.number}` : 'um PR';
+  const pr = ev.number !== undefined ? i18n`o PR #${ev.number}` : i18n('um PR');
   const act = (icon: string, text: string, detail?: string, error = false): MarkedDescription => {
     const d: MarkedDescription = { kind: 'git', icon, text: clean(text, MAX_TEXT), tool: GITHUB_TOOL };
     const det = detail ?? ev.url ?? ev.repo;
@@ -94,41 +95,41 @@ export function describeGitHubEvent(ev: GitHubEvent, agentName: string, roomName
   };
   switch (ev.kind) {
     case 'pr_opened':
-      return { notice: `🎉 ${agentName} abriu ${pr} em ${roomName}`, level: 'success', activity: act('🎉', `Abriu ${pr}`) };
+      return { notice: i18n`🎉 ${agentName} abriu ${pr} em ${roomName}`, level: 'success', activity: act('🎉', i18n`Abriu ${pr}`) };
     case 'pr_merged':
-      return { notice: `🎉 ${agentName} mergeou ${pr} em ${roomName}`, level: 'success', activity: act('🎉', `Mergeou ${pr}`) };
+      return { notice: i18n`🎉 ${agentName} mergeou ${pr} em ${roomName}`, level: 'success', activity: act('🎉', i18n`Mergeou ${pr}`) };
     case 'release': {
       const tag = ev.tag ? clean(ev.tag, 24) : undefined;
       return {
-        notice: `🎉 ${agentName} publicou ${tag ? `a release ${tag}` : 'uma release'} em ${roomName}`,
+        notice: i18n`🎉 ${agentName} publicou ${tag ? i18n`a release ${tag}` : i18n('uma release')} em ${roomName}`,
         level: 'success',
-        activity: act('🎉', tag ? `Publicou a release ${tag}` : 'Publicou uma release'),
+        activity: act('🎉', tag ? i18n`Publicou a release ${tag}` : i18n('Publicou uma release')),
       };
     }
     case 'push': {
       const branch = ev.branch ? clean(ev.branch, 28) : undefined;
       return {
-        notice: `🚀 ${agentName} enviou commits ${branch ? `para ${branch} ` : ''}em ${roomName}`,
+        notice: i18n`🚀 ${agentName} enviou commits ${branch ? `para ${branch} ` : ''}em ${roomName}`,
         level: 'info',
-        activity: act('🚀', branch ? `Enviou commits para ${branch}` : 'Enviou commits ao GitHub'),
+        activity: act('🚀', branch ? i18n`Enviou commits para ${branch}` : i18n('Enviou commits ao GitHub')),
       };
     }
     case 'ci_failed': {
       const where = ciWhere(ev);
       const what = ciWhat(ev);
       return {
-        notice: `🚨 CI falhou em ${roomName}${where ? ` (${where})` : ''}`,
+        notice: i18n`🚨 CI falhou em ${roomName}${where ? ` (${where})` : ''}`,
         level: 'warn',
-        activity: act('🚨', what ? `CI falhou: ${what}` : 'CI falhou', [ev.workflow, ev.branch, ev.url].filter(Boolean).join(' — ') || undefined, true),
+        activity: act('🚨', what ? i18n`CI falhou: ${what}` : i18n('CI falhou'), [ev.workflow, ev.branch, ev.url].filter(Boolean).join(' — ') || undefined, true),
       };
     }
     case 'ci_passed': {
       const where = ciWhere(ev);
       const what = ciWhat(ev);
       return {
-        notice: `✅ CI passou em ${roomName}${where ? ` (${where})` : ''}`,
+        notice: i18n`✅ CI passou em ${roomName}${where ? ` (${where})` : ''}`,
         level: 'success',
-        activity: act('✅', what ? `CI passou: ${what}` : 'CI passou', [ev.workflow, ev.branch, ev.url].filter(Boolean).join(' — ') || undefined),
+        activity: act('✅', what ? i18n`CI passou: ${what}` : i18n('CI passou'), [ev.workflow, ev.branch, ev.url].filter(Boolean).join(' — ') || undefined),
       };
     }
   }

@@ -15,6 +15,7 @@ import { SHELL_DONE_TOOL, SHELL_WAIT_TOOL } from '../activity';
 import { hash32 } from '../hash';
 import { MESSAGE_TOOL } from '../messages';
 import { demoPatchText } from './permission';
+import { i18n } from '../i18n';
 
 type ToolEntry = Extract<TerminalEntry, { kind: 'tool' }>;
 
@@ -62,18 +63,18 @@ const pascal = (s: string) => s.replace(/(^|[-_.\s])(\w)/g, (_, __, c: string) =
 // ------------------------------------------------------------------ conteúdo inventado
 
 const THOUGHTS = [
-  'Antes de mexer, vale entender como esse fluxo está montado hoje.',
-  'O mais seguro é cobrir com um teste primeiro e depois ajustar o código.',
-  'Acho que o problema está no cálculo; vou conferir quem chama essa função.',
-  'Dá para resolver com uma mudança pequena, sem quebrar a API existente.',
-  'Preciso checar se outros lugares dependem desse comportamento.',
+  i18n('Antes de mexer, vale entender como esse fluxo está montado hoje.'),
+  i18n('O mais seguro é cobrir com um teste primeiro e depois ajustar o código.'),
+  i18n('Acho que o problema está no cálculo; vou conferir quem chama essa função.'),
+  i18n('Dá para resolver com uma mudança pequena, sem quebrar a API existente.'),
+  i18n('Preciso checar se outros lugares dependem desse comportamento.'),
 ];
 
 const SUMMARIES = [
-  'Pronto! Ajustei o necessário e os testes passaram.',
-  'Feito. A mudança ficou pequena e coberta por testes.',
-  'Concluí a tarefa; deixei tudo verde no build e nos testes.',
-  'Terminei. Se quiser, posso abrir um PR com essas mudanças.',
+  i18n('Pronto! Ajustei o necessário e os testes passaram.'),
+  i18n('Feito. A mudança ficou pequena e coberta por testes.'),
+  i18n('Concluí a tarefa; deixei tudo verde no build e nos testes.'),
+  i18n('Terminei. Se quiser, posso abrir um PR com essas mudanças.'),
 ];
 
 /** Trecho de código plausível por extensão (para Read e Write). */
@@ -154,7 +155,7 @@ function commandOutput(command: string, seed: number, ctx: Ctx): string {
   if (/playwright\s+test/.test(command)) return `Running ${n(8, 30)} tests using 4 workers\n\n  ✓ ${n(8, 30)} passed (${secs}s)`;
   if (/pytest/.test(command)) return `${'.'.repeat(n(12, 40))}\n${n(12, 40)} passed in ${secs}s`;
   if (/\b(npm|pnpm|yarn)\s+(run\s+)?test\b|vitest|jest/.test(command)) {
-    return `✓ ${n(20, 140)} testes passaram (${n(3, 12)} arquivos)\nDuração: ${secs}s`;
+    return i18n`✓ ${n(20, 140)} testes passaram (${n(3, 12)} arquivos)\nDuração: ${secs}s`;
   }
   if (/^git status/.test(command)) return `On branch ${branch}\nChanges not staged for commit:\n\tmodified:   ${f1}\n\tmodified:   ${f2}\n\nno changes added to commit`;
   if (/^git diff/.test(command)) {
@@ -167,19 +168,19 @@ function commandOutput(command: string, seed: number, ctx: Ctx): string {
   }
   if (/^git push/.test(command)) return `To git.example.com:empresa/${ctx.project}.git\n   ${hex(seed)}..${hex(hash32(String(seed)))}  ${branch} -> ${branch}`;
   if (/^git pull/.test(command)) return 'Already up to date.';
-  if (/\bdb:migrate\b/.test(command)) return `Migração 004_refunds aplicada\nSeed concluído (${n(10, 90)} registros)`;
+  if (/\bdb:migrate\b/.test(command)) return i18n`Migração 004_refunds aplicada\nSeed concluído (${n(10, 90)} registros)`;
   if (/\b(npm|pnpm|yarn)\s+(run\s+)?build\b|vite\s+build/.test(command)) return `vite v6.3.5 building for production...\n✓ ${n(80, 900)} modules transformed.\n✓ built in ${secs}s`;
-  if (/\blint\b/.test(command)) return `✓ Nenhum problema encontrado (${n(20, 200)} arquivos)`;
+  if (/\blint\b/.test(command)) return i18n`✓ Nenhum problema encontrado (${n(20, 200)} arquivos)`;
   if (/\bnpm\s+(ci|install|i)\b/.test(command)) return `added ${n(120, 900)} packages, and audited ${n(900, 1200)} packages in ${n(3, 20)}s\n\nfound 0 vulnerabilities`;
   if (/\bpip3?\s+install\b/.test(command)) return 'Successfully installed pandas-2.2.3 numpy-2.1.3 python-dateutil-2.9.0';
   if (/docker\s+pull/.test(command)) return '17: Pulling from library/postgres\nDigest: sha256:3f1a…\nStatus: Downloaded newer image for postgres:17';
   if (/docker\s+compose\s+up/.test(command)) return `[+] Running 2/2\n ✔ Container ${ctx.project}-db-1   Started\n ✔ Container ${ctx.project}-api-1  Started`;
   if (/^psql\b/.test(command)) return ` count\n-------\n  ${n(100, 9000)}\n(1 row)`;
   if (/^curl\b/.test(command)) return `{"status":"ok","uptime":${n(100, 99_999)}}`;
-  if (/lighthouse/.test(command)) return `Performance: ${n(85, 99)}\nAcessibilidade: ${n(90, 100)}\nBoas práticas: 100\nSEO: 100`;
-  if (/\b(expo\s+start|npm\s+run\s+dev)\b/.test(command)) return 'Servidor de desenvolvimento rodando em http://localhost:5173';
-  if (/^python3?\s/.test(command)) return `Processados ${n(500, 20_000)} registros em ${secs}s`;
-  return '✓ Comando concluído';
+  if (/lighthouse/.test(command)) return i18n`Performance: ${n(85, 99)}\nAcessibilidade: ${n(90, 100)}\nBoas práticas: 100\nSEO: 100`;
+  if (/\b(expo\s+start|npm\s+run\s+dev)\b/.test(command)) return i18n('Servidor de desenvolvimento rodando em http://localhost:5173');
+  if (/^python3?\s/.test(command)) return i18n`Processados ${n(500, 20_000)} registros em ${secs}s`;
+  return i18n('✓ Comando concluído');
 }
 
 // ------------------------------------------------------------------ atividades → entradas
@@ -209,8 +210,8 @@ function shellCall(out: TerminalEntry[], a: Activity, i: number, command: string
   const bg = isBackground(i, ctx);
   const result = bg
     ? ctx.codex
-      ? `Comando rodando em segundo plano (sessão ${num(seed, 1000, 9999)}).`
-      : `Comando rodando em segundo plano (id b${hex(seed)}). Você recebe um aviso quando ele terminar.`
+      ? i18n`Comando rodando em segundo plano (sessão ${num(seed, 1000, 9999)}).`
+      : i18n`Comando rodando em segundo plano (id b${hex(seed)}). Você recebe um aviso quando ele terminar.`
     : (output ?? commandOutput(command, seed, ctx));
   const firstLine = command.split('\n')[0];
   const tool = ctx.codex ? 'Shell' : 'Bash';
@@ -235,7 +236,7 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
       kind: 'system',
       id: `${a.id}:s`,
       at: a.at,
-      text: failed ? `Tarefa em segundo plano falhou: ${label}` : `Tarefa em segundo plano concluída: ${label}`,
+      text: failed ? i18n`Tarefa em segundo plano falhou: ${label}` : i18n`Tarefa em segundo plano concluída: ${label}`,
       level: failed ? 'warn' : 'info',
       detail: failed ? 'exit code 1' : 'exit code 0',
     });
@@ -243,7 +244,7 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
   }
   if (a.tool === SHELL_WAIT_TOOL) {
     const what = detail ? `\`${detail.split('\n')[0]}\`` : `**${afterColon(a.text)}**`;
-    out.push({ kind: 'assistant', id: `${a.id}:a`, at: a.at, text: `Deixei rodando em segundo plano: ${what}. Volto assim que terminar.` });
+    out.push({ kind: 'assistant', id: `${a.id}:a`, at: a.at, text: i18n`Deixei rodando em segundo plano: ${what}. Volto assim que terminar.` });
     return;
   }
   // Mensagem mandada pelo escritório: entra na conversa como um prompt seu.
@@ -256,12 +257,12 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
       out.push({ kind: 'user', id: `${a.id}:u`, at: a.at, text: detail ?? quoted(a.text) ?? a.text });
       return;
     case 'think': {
-      const text = a.text.startsWith('Pensando') ? (seed % 3 === 0 ? undefined : pick(THOUGHTS, seed >>> 3)) : 'Os subagentes terminaram; vou juntar o que cada um encontrou.';
+      const text = a.text.startsWith(i18n('Pensando')) ? (seed % 3 === 0 ? undefined : pick(THOUGHTS, seed >>> 3)) : i18n('Os subagentes terminaram; vou juntar o que cada um encontrou.');
       out.push(text ? { kind: 'thinking', id: `${a.id}:k`, at: a.at, text } : { kind: 'thinking', id: `${a.id}:k`, at: a.at });
       return;
     }
     case 'respond':
-      out.push({ kind: 'assistant', id: `${a.id}:a`, at: a.at, text: detail ?? 'Encontrei o ponto do problema; vou ajustar agora.' });
+      out.push({ kind: 'assistant', id: `${a.id}:a`, at: a.at, text: detail ?? i18n('Encontrei o ponto do problema; vou ajustar agora.') });
       return;
     case 'read': {
       if (!detail?.startsWith('/')) break;
@@ -277,7 +278,7 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
       const [before, after] = editPair(file, seed);
       const lines = [...before.split('\n').map((l) => `- ${l}`), ...after.split('\n').map((l) => `+ ${l}`)];
       if (ctx.codex) patchCall(out, a, file, lines, false);
-      else call(out, a, 'Edit', `Edit(${file})`, `Arquivo atualizado: ${file}`, { input: lines.join('\n'), inputKind: 'diff' });
+      else call(out, a, 'Edit', `Edit(${file})`, i18n`Arquivo atualizado: ${file}`, { input: lines.join('\n'), inputKind: 'diff' });
       return;
     }
     case 'write': {
@@ -285,13 +286,13 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
       const file = rel(detail, ctx);
       const lines = snippet(file);
       if (ctx.codex) return patchCall(out, a, file, lines, true);
-      call(out, a, 'Write', `Write(${file})`, `Arquivo criado: ${file} (${lines.length} linhas)`, { input: lines.map((l) => `+ ${l}`).join('\n'), inputKind: 'diff' });
+      call(out, a, 'Write', `Write(${file})`, i18n`Arquivo criado: ${file} (${lines.length} linhas)`, { input: lines.map((l) => `+ ${l}`).join('\n'), inputKind: 'diff' });
       return;
     }
     case 'search': {
       const pattern = detail ?? quoted(a.text);
       if (!pattern) break;
-      if (a.text.startsWith('Procurando')) {
+      if (a.text.startsWith(i18n('Procurando'))) {
         const ext = /\*\.(\w+)$/.exec(pattern)?.[1];
         const known = ctx.pool.filter((f) => !ext || f.endsWith(`.${ext}`));
         const found = known.length ? known : [`src/index.${ext}`, `src/app.${ext}`];
@@ -313,14 +314,14 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
       return;
     case 'web': {
       if (!detail) break;
-      if (a.text.startsWith('Pesquisando')) {
+      if (a.text.startsWith(i18n('Pesquisando'))) {
         const slug = detail
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-|-$/g, '');
-        const results = [`${detail} — guia completo`, `Documentação oficial: ${detail}`, `Discussão no fórum: ${detail}`];
+        const results = [i18n`${detail} — guia completo`, i18n`Documentação oficial: ${detail}`, i18n`Discussão no fórum: ${detail}`];
         const urls = [`https://blog.example.com/${slug}`, `https://docs.example.com/${slug}`, `https://forum.example.com/t/${slug}`];
         const tool = ctx.codex ? 'web_search' : 'WebSearch';
         call(out, a, tool, `${tool}(${detail})`, results.map((r, k) => `${k + 1}. ${r}\n   ${urls[k]}`).join('\n'));
@@ -331,8 +332,8 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
         return;
       }
       if (/^https?:\/\//.test(detail)) {
-        call(out, a, 'WebFetch', `WebFetch(${detail})`, 'A página explica a API com exemplos; o trecho relevante confirma o formato esperado.', {
-          input: 'Resuma o que importa para a nossa implementação',
+        call(out, a, 'WebFetch', `WebFetch(${detail})`, i18n('A página explica a API com exemplos; o trecho relevante confirma o formato esperado.'), {
+          input: i18n('Resuma o que importa para a nossa implementação'),
           inputKind: 'text',
         });
         return;
@@ -344,15 +345,15 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
       const [done = 0, total = ctx.agent.tasks.length] = (/(\d+)\/(\d+)/.exec(detail ?? '') ?? []).slice(1).map(Number);
       const list = ctx.agent.tasks.slice(0, total || undefined).map((t, k) => `${k < done ? '☒' : k === done ? '◐' : '☐'} ${t.title}`);
       const tool = ctx.codex ? 'update_plan' : 'TodoWrite';
-      call(out, a, tool, total ? `${tool}(${done}/${total} concluídas)` : tool, ctx.codex ? 'Plan updated' : 'Lista de tarefas atualizada', list.length ? { input: list.join('\n'), inputKind: 'text' } : undefined);
+      call(out, a, tool, total ? i18n`${tool}(${done}/${total} concluídas)` : tool, ctx.codex ? 'Plan updated' : i18n('Lista de tarefas atualizada'), list.length ? { input: list.join('\n'), inputKind: 'text' } : undefined);
       return;
     }
     case 'delegate': {
       const desc = afterColon(a.text);
       const type = ctx.codex ? 'worker' : detail?.split(' — ')[0];
       const tool = ctx.codex ? 'spawn_agent' : 'Agent';
-      call(out, a, tool, `${tool}(${type ? `${type}: ` : ''}${desc})`, 'Subagentes trabalhando em paralelo; os resultados chegam quando terminarem.', {
-        input: `${desc}. Investigue o código de ${ctx.project} e devolva um resumo curto com os arquivos envolvidos.`,
+      call(out, a, tool, `${tool}(${type ? `${type}: ` : ''}${desc})`, i18n('Subagentes trabalhando em paralelo; os resultados chegam quando terminarem.'), {
+        input: i18n`${desc}. Investigue o código de ${ctx.project} e devolva um resumo curto com os arquivos envolvidos.`,
         inputKind: 'text',
       });
       return;
@@ -362,33 +363,33 @@ function entriesFor(a: Activity, i: number, ctx: Ctx, out: TerminalEntry[]): voi
         kind: 'system',
         id: `${a.id}:s`,
         at: a.at,
-        text: a.text.startsWith('Precisa de você')
-          ? `Aguardando você: ${a.text.includes(':') ? afterColon(a.text) : 'responder no terminal'}`
-          : a.text.startsWith('Interrompido')
-            ? 'Interrompido pelo usuário'
+        text: a.text.startsWith(i18n('Precisa de você'))
+          ? i18n`Aguardando você: ${a.text.includes(':') ? afterColon(a.text) : i18n('responder no terminal')}`
+          : a.text.startsWith(i18n('Interrompido'))
+            ? i18n('Interrompido pelo usuário')
             : a.text,
         level: 'warn',
       });
       return;
     case 'done': {
-      const text = ctx.agent.kind === 'sub' && ctx.agent.title ? `Entrega: ${ctx.agent.title}. Resumo enviado ao agente principal.` : pick(SUMMARIES, seed);
+      const text = ctx.agent.kind === 'sub' && ctx.agent.title ? i18n`Entrega: ${ctx.agent.title}. Resumo enviado ao agente principal.` : pick(SUMMARIES, seed);
       out.push({ kind: 'assistant', id: `${a.id}:a`, at: a.at, text });
       const took = /Concluiu em (.+)$/.exec(a.text)?.[1];
-      if (took) out.push({ kind: 'system', id: `${a.id}:s`, at: a.at, text: `Turno concluído em ${took}`, level: 'info' });
+      if (took) out.push({ kind: 'system', id: `${a.id}:s`, at: a.at, text: i18n`Turno concluído em ${took}`, level: 'info' });
       return;
     }
     case 'error':
       out.push({ kind: 'system', id: `${a.id}:s`, at: a.at, text: a.text, level: 'error', ...(detail ? { detail } : {}) });
       return;
     case 'compact':
-      out.push({ kind: 'system', id: `${a.id}:s`, at: a.at, text: 'Conversa compactada automaticamente', level: 'info' });
+      out.push({ kind: 'system', id: `${a.id}:s`, at: a.at, text: i18n('Conversa compactada automaticamente'), level: 'info' });
       return;
     default:
       break;
   }
   // Qualquer outra coisa: uma ferramenta genérica com o detalhe como argumento.
-  const tool = a.tool ?? TOOL_BY_KIND[a.kind] ?? 'Ferramenta';
-  call(out, a, tool, detail ? `${tool}(${detail.split('\n')[0]})` : tool, '✓ Concluído');
+  const tool = a.tool ?? TOOL_BY_KIND[a.kind] ?? i18n('Ferramenta');
+  call(out, a, tool, detail ? `${tool}(${detail.split('\n')[0]})` : tool, i18n('✓ Concluído'));
 }
 
 const TOOL_BY_KIND: Partial<Record<Activity['kind'], string>> = {
