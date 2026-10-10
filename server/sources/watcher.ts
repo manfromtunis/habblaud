@@ -42,6 +42,7 @@ import {
   type TranscriptSignal,
   type TranscriptState,
 } from './transcript';
+import { i18n } from '../../shared/i18n';
 
 export interface WatcherOptions {
   accounts: AccountsService;
@@ -301,7 +302,7 @@ export class ClaudeWatcher implements AgentSource {
         account: accountId,
         sessionId: entry.sessionId,
         cwd: entry.cwd,
-        role: entry.agent ? `Agente ${entry.agent}` : 'Agente principal',
+        role: entry.agent ? i18n`Agente ${entry.agent}` : i18n('Agente principal'),
         startedAt: entry.startedAt ?? this.now(),
         status: st.status ?? 'idle',
         waitingFor: st.waitingFor,
@@ -377,7 +378,7 @@ export class ClaudeWatcher implements AgentSource {
     let owner = job.owner;
     if (!office.has(owner) || (owner !== t.key && office.isSubDone(owner))) owner = t.key;
     const exit = fin.summary ? /exit code (-?\d+)/i.exec(fin.summary)?.[1] : undefined;
-    const detail = [exit !== undefined ? `Código de saída ${exit}` : undefined, job.command].filter(Boolean).join(' — ') || fin.summary;
+    const detail = [exit !== undefined ? i18n`Código de saída ${exit}` : undefined, job.command].filter(Boolean).join(' — ') || fin.summary;
     const input: { id: string; label: string; startedAt: number; command?: string } = { id: job.taskId ?? job.toolUseId, label: job.label, startedAt: job.startedAt };
     if (job.command) input.command = job.command;
     office.shellDone(owner, input, fin.outcome, fin.at, detail ? { live, summary: detail } : { live });

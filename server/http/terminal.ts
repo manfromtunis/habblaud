@@ -19,6 +19,7 @@ import { FileTail } from '../sources/tail';
 import { createTerminalParser, type TerminalParser } from '../sources/terminal';
 import { sendJson } from './app';
 import { frame } from './sse';
+import { i18n } from '../../shared/i18n';
 
 /** Terminais abertos ao mesmo tempo (cada um lê o transcript por conta própria). */
 export const MAX_STREAMS = 8;
@@ -247,14 +248,14 @@ export class TerminalStreams {
   /** Limite de terminais, `init` e o stream SSE de uma fonte já escolhida. */
   private serve(req: IncomingMessage, res: ServerResponse, id: string, source: ConversationSource): void {
     if (this.streams.size >= this.maxStreams) {
-      return sendJson(res, 429, { error: `terminais abertos demais (máximo de ${this.maxStreams}); feche algum e tente de novo` });
+      return sendJson(res, 429, { error: i18n`terminais abertos demais (máximo de ${this.maxStreams}); feche algum e tente de novo` });
     }
     let init: TerminalInit;
     try {
       init = source.load();
     } catch (err) {
       log.warnOnce(`terminal-load:${id}:${errMsg(err)}`, `Terminal de ${id}: não foi possível ler o transcript (${errMsg(err)}).`);
-      return sendJson(res, 500, { error: 'não foi possível ler o transcript' });
+      return sendJson(res, 500, { error: i18n('não foi possível ler o transcript') });
     }
     req.socket.setTimeout(0);
     req.socket.setNoDelay(true);
@@ -287,7 +288,7 @@ export class TerminalStreams {
     const office = this.opts.office;
     if (office.has(agentId)) {
       const path = this.opts.transcriptPathOf(agentId);
-      if (!path) return 'transcript do agente não encontrado';
+      if (!path) return i18n('transcript do agente não encontrado');
       const parserFor = this.opts.parserFor;
       const createParser = parserFor ? () => parserFor(agentId) ?? this.createParser() : this.createParser;
       const o = { transcriptPathOf: this.opts.transcriptPathOf, createParser, initTailBytes: this.initTailBytes, initEntries: this.initEntries };
@@ -297,7 +298,7 @@ export class TerminalStreams {
     if (agentId.startsWith(DEMO_PREFIX) && office.detail(agentId)) {
       return new DemoSource(agentId, { office, demoEntries: this.demoEntries, initEntries: this.initEntries }, this.demoPollMs);
     }
-    return 'agente não encontrado';
+    return i18n('agente não encontrado');
   }
 
   private pump(s: Stream, source: ConversationSource, agentId: string): void {

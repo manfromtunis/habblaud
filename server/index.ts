@@ -10,7 +10,7 @@ import { loadConfig, messagesOffReason, terminalOffReason } from './config';
 import { createApiHandler, sendJson } from './http/app';
 import { createRequestGuard } from './http/guard';
 import { Hub } from './http/sse';
-import { createStaticHandler } from './http/static';
+import { createStaticHandler, localizeHtml } from './http/static';
 import { TerminalStreams } from './http/terminal';
 import { createTimelineHandler } from './http/timeline';
 import { TIMELINE_DIR, TimelineRecorder } from './history/timeline';
@@ -35,6 +35,7 @@ import { CodexHistory } from './sources/codex/history';
 import { CodexSource } from './sources/codex/source';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
+import { i18n } from '../shared/i18n';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -217,11 +218,12 @@ if (config.dev) {
     configFile: join(config.rootDir, 'vite.config.ts'),
     server: { middlewareMode: true, ws: { server } },
     appType: 'spa',
+    plugins: [{ name: 'habblaud-lang', transformIndexHtml: (html) => localizeHtml(html, config.lang) }],
   });
   closeVite = () => vite.close();
   fallback = (req, res) => vite.middlewares(req, res);
 } else {
-  const serveStatic = createStaticHandler(join(config.rootDir, 'dist', 'client'));
+  const serveStatic = createStaticHandler(join(config.rootDir, 'dist', 'client'), config.lang);
   fallback = (req, res, url) => serveStatic(req, res, url.pathname);
 }
 
@@ -235,7 +237,7 @@ server.on('request', (req, res) => {
     if (!api(req, res, url)) fallback(req, res, url);
   } catch (err) {
     log.warn(`Erro ao responder ${req.method} ${url.pathname}: ${errMsg(err)}`);
-    if (!res.headersSent) sendJson(res, 500, { error: 'erro interno' });
+    if (!res.headersSent) sendJson(res, 500, { error: i18n('erro interno') });
     else res.destroy();
   }
 });

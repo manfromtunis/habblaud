@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { UpdateStatus } from '../../shared/types';
 import { errMsg, log } from '../log';
+import { i18n } from '../../shared/i18n';
 
 export const CHECK_EVERY_MS = 6 * 3_600_000;
 export const RETRY_MS = 3_600_000;
@@ -213,9 +214,9 @@ export class UpdateChecker {
         publishedAt: latest && Number.isFinite(published) ? published : undefined,
       };
     } else if (res.status === 403 || res.status === 429) {
-      throw new Error('limite de consultas do GitHub atingido; tento de novo mais tarde');
+      throw new Error(i18n('limite de consultas do GitHub atingido; tento de novo mais tarde'));
     } else {
-      throw new Error(`o GitHub respondeu ${res.status}`);
+      throw new Error(i18n`o GitHub respondeu ${res.status}`);
     }
     this.save();
   }
@@ -256,7 +257,7 @@ function safeReleaseUrl(url: unknown, repo: string): string {
 
 function describeError(err: unknown): string {
   const name = (err as { name?: unknown })?.name;
-  if (name === 'TimeoutError' || name === 'AbortError') return 'o GitHub não respondeu a tempo';
-  if (err instanceof TypeError) return 'sem conexão com o GitHub';
+  if (name === 'TimeoutError' || name === 'AbortError') return i18n('o GitHub não respondeu a tempo');
+  if (err instanceof TypeError) return i18n('sem conexão com o GitHub');
   return errMsg(err);
 }

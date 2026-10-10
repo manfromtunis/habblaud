@@ -15,6 +15,7 @@
 import type { TerminalEntry, TerminalInputKind } from '../../shared/types';
 import { formatDuration, maskSecrets, truncate } from '../../shared/activity';
 import { forkDirective, parseTaskNotification } from './transcript';
+import { i18n } from '../../shared/i18n';
 
 export interface TerminalParser {
   /** Interpreta uma linha do JSONL. Linhas inválidas ou irrelevantes devolvem []. */
@@ -256,11 +257,11 @@ function diffInput(oldRaw: string, newRaw: string): Pick<ToolView, 'input' | 'in
 }
 
 const TODO_MARK: Record<string, string> = { completed: '☒', in_progress: '◐', pending: '☐' };
-const TASK_STATUS: Record<string, string> = { completed: 'concluída', in_progress: 'em andamento', pending: 'pendente', deleted: 'removida' };
+const TASK_STATUS: Record<string, string> = { completed: i18n('concluída'), in_progress: i18n('em andamento'), pending: i18n('pendente'), deleted: i18n('removida') };
 
 function todoList(raw: unknown): { list: string; done: number; total: number } {
   const items = Array.isArray(raw) ? raw.map(rec).filter((t): t is Rec => !!t) : [];
-  const lines = items.map((t) => `${TODO_MARK[String(t.status)] ?? '☐'} ${str(t.content) ?? str(t.subject) ?? str(t.title) ?? '(sem título)'}`);
+  const lines = items.map((t) => `${TODO_MARK[String(t.status)] ?? '☐'} ${str(t.content) ?? str(t.subject) ?? str(t.title) ?? i18n('(sem título)')}`);
   return { list: lines.join('\n'), done: items.filter((t) => t.status === 'completed').length, total: items.length };
 }
 
@@ -322,7 +323,7 @@ export function toolView(name: string, input: Rec, cwd?: string): ToolView {
     }
     case 'TodoWrite': {
       const t = todoList(input.todos);
-      return { title: t.total ? `TodoWrite(${t.done}/${t.total} concluídas)` : 'TodoWrite', ...textInput(t.list) };
+      return { title: t.total ? i18n`TodoWrite(${t.done}/${t.total} concluídas)` : 'TodoWrite', ...textInput(t.list) };
     }
     case 'TaskCreate':
       return { title: titled('TaskCreate', s('subject')), ...textInput(s('description')) };
@@ -367,8 +368,8 @@ function resultText(content: unknown): string {
     const b = rec(raw);
     if (!b) continue;
     if (b.type === 'text' && typeof b.text === 'string') parts.push(b.text);
-    else if (b.type === 'image') parts.push('[imagem]');
-    else if (b.type === 'document') parts.push('[documento]');
+    else if (b.type === 'image') parts.push(i18n('[imagem]'));
+    else if (b.type === 'document') parts.push(i18n('[documento]'));
     else if (b.type === 'tool_reference' && typeof b.tool_name === 'string') parts.push(b.tool_name);
   }
   return parts.join('\n');
@@ -485,7 +486,7 @@ class Parser implements TerminalParser {
     const content = rec(j.message)?.content;
     if (j.isCompactSummary === true) {
       const text = typeof content === 'string' ? content : resultText(content);
-      this.sys(c, 'Resumo da conversa compactada', { detail: text });
+      this.sys(c, i18n('Resumo da conversa compactada'), { detail: text });
       return;
     }
     if (typeof content === 'string') return this.userText(c, content);
@@ -517,13 +518,13 @@ class Parser implements TerminalParser {
 
   private userText(c: Ctx, raw: string, images = 0): void {
     const text = (raw.includes('<system-reminder>') ? raw.replace(REMINDER, '') : raw).trim();
-    const pics = images ? Array.from({ length: Math.min(images, 10) }, () => '[imagem]').join(' ') : '';
+    const pics = images ? Array.from({ length: Math.min(images, 10) }, () => i18n('[imagem]')).join(' ') : '';
     if (!text) {
       if (pics) this.userEntry(c, pics);
       return;
     }
     if (text.startsWith('<task-notification>')) return this.notification(c, text);
-    if (INTERRUPTED.test(text)) return this.sys(c, 'Interrompido pelo usuário', { level: 'warn' });
+    if (INTERRUPTED.test(text)) return this.sys(c, i18n('Interrompido pelo usuário'), { level: 'warn' });
     if (text.startsWith('Caveat:')) return;
     const tag = /^<([a-z][\w-]*)/.exec(text)?.[1];
     switch (tag) {
@@ -545,7 +546,7 @@ class Parser implements TerminalParser {
         const out = OUTPUT_TAGS.map((t) => inner(text, t)?.trim())
           .filter(Boolean)
           .join('\n');
-        if (out) this.sys(c, this.lastCommand ? `Saída de ${this.lastCommand}` : 'Saída do comando', { detail: out });
+        if (out) this.sys(c, this.lastCommand ? i18n`Saída de ${this.lastCommand}` : i18n('Saída do comando'), { detail: out });
         return;
       }
       case 'bash-input': {
@@ -560,7 +561,7 @@ class Parser implements TerminalParser {
           .map((x) => x?.trim())
           .filter(Boolean)
           .join('\n');
-        this.sys(c, 'Saída do comando', { detail: out || '(sem saída)' });
+        this.sys(c, i18n('Saída do comando'), { detail: out || i18n('(sem saída)') });
         return;
       }
       case 'scheduled-task': {
@@ -593,16 +594,16 @@ class Parser implements TerminalParser {
     const status = n.status?.toLowerCase();
     const result = inner(text, 'result')?.trim();
     const event = inner(text, 'event')?.trim();
-    let label = 'Notificação de tarefa em segundo plano';
+    let label = i18n('Notificação de tarefa em segundo plano');
     let level: Level = 'info';
-    if (status === 'completed') label = 'Tarefa em segundo plano concluída';
+    if (status === 'completed') label = i18n('Tarefa em segundo plano concluída');
     else if (status === 'failed' || status === 'error') {
-      label = 'Tarefa em segundo plano falhou';
+      label = i18n('Tarefa em segundo plano falhou');
       level = 'warn';
     } else if (status === 'killed' || status === 'stopped' || status === 'cancelled') {
-      label = 'Tarefa em segundo plano interrompida';
+      label = i18n('Tarefa em segundo plano interrompida');
       level = 'warn';
-    } else if (event) label = 'Evento de tarefa em segundo plano';
+    } else if (event) label = i18n('Evento de tarefa em segundo plano');
     const summary = n.summary ? oneLine(n.summary, 160) : '';
     const detail = [summary.endsWith('…') ? n.summary : undefined, event, result].filter(Boolean).join('\n\n');
     this.sys(c, summary ? `${label}: ${summary}` : label, { level, detail });
@@ -617,10 +618,10 @@ class Parser implements TerminalParser {
     if (wrapped !== undefined) raw = wrapped;
     if (error && REJECTED.test(raw.slice(0, 300))) {
       const feedback = /the user said:\s*([\s\S]*)$/i.exec(raw)?.[1]?.trim();
-      raw = feedback ? `Recusado pelo usuário: ${feedback}` : 'Recusado pelo usuário';
+      raw = feedback ? i18n`Recusado pelo usuário: ${feedback}` : i18n('Recusado pelo usuário');
     }
     const p = prepare(raw, RESULT_MAX, RESULT_MAX_LINES);
-    const e: ResultEntry = { kind: 'result', id: `${id}:r`, at: c.at, toolUseId: id, text: p.text || '(sem saída)' };
+    const e: ResultEntry = { kind: 'result', id: `${id}:r`, at: c.at, toolUseId: id, text: p.text || i18n('(sem saída)') };
     if (error) e.error = true;
     if (p.truncated) e.truncated = true;
     this.emit(e);
@@ -656,7 +657,7 @@ class Parser implements TerminalParser {
     const synthetic = m.model === '<synthetic>';
     if (c.j.isApiErrorMessage === true || (synthetic && str(c.j.error))) {
       const text = blocks.map((b) => rec(b)?.text).filter((t): t is string => typeof t === 'string').join('\n');
-      return this.sysContent(c, text || 'Erro da API', 'error');
+      return this.sysContent(c, text || i18n('Erro da API'), 'error');
     }
     const msgId = str(m.id) ?? c.uuid;
     blocks.forEach((raw, i) => {
@@ -714,7 +715,7 @@ class Parser implements TerminalParser {
     switch (j.subtype) {
       case 'compact_boundary': {
         const trigger = rec(j.compactMetadata)?.trigger;
-        return this.sys(c, trigger === 'manual' ? 'Conversa compactada (/compact)' : trigger === 'auto' ? 'Conversa compactada automaticamente' : 'Conversa compactada');
+        return this.sys(c, trigger === 'manual' ? i18n('Conversa compactada (/compact)') : trigger === 'auto' ? i18n('Conversa compactada automaticamente') : i18n('Conversa compactada'));
       }
       case 'api_error': {
         // Uma linha por tentativa: só a primeira de cada sequência vira entrada.
@@ -723,20 +724,20 @@ class Parser implements TerminalParser {
         const err = rec(j.error);
         const why = str(err?.formatted) ?? str(err?.message) ?? str(j.error);
         const max = typeof j.maxRetries === 'number' ? j.maxRetries : undefined;
-        const retry = attempt !== undefined ? ` — tentando de novo${max ? ` (até ${max} vezes)` : ''}` : '';
-        return this.sys(c, `Erro da API${why ? `: ${oneLine(why, 140)}` : ''}${retry}`, { level: 'error' });
+        const retry = attempt !== undefined ? i18n` — tentando de novo${max ? i18n` (até ${max} vezes)` : ''}` : '';
+        return this.sys(c, i18n`Erro da API${why ? `: ${oneLine(why, 140)}` : ''}${retry}`, { level: 'error' });
       }
       case 'local_command':
         return this.userText(c, content);
       case 'turn_duration':
-        if (typeof j.durationMs === 'number' && j.durationMs >= 0) this.sys(c, `Turno concluído em ${formatDuration(j.durationMs)}`);
+        if (typeof j.durationMs === 'number' && j.durationMs >= 0) this.sys(c, i18n`Turno concluído em ${formatDuration(j.durationMs)}`);
         return;
       case 'informational':
         return this.sysContent(c, content, j.level === 'warning' ? 'warn' : j.level === 'error' ? 'error' : 'info');
       case 'model_refusal_fallback':
         return this.sysContent(c, content, 'warn');
       case 'away_summary':
-        return this.sysContent(c, content, 'info', 'Recapitulação');
+        return this.sysContent(c, content, 'info', i18n('Recapitulação'));
       default:
         // stop_hook_summary, bridge_status (traz o link da sessão remota)... só erros passam.
         if (j.level === 'error') this.sysContent(c, content, 'error');
