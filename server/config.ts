@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { discoverClaudeDirs } from './accounts/detect';
 import { parseAllowedHosts } from './http/guard';
+import { parseLang, type Lang } from '../shared/i18n';
 import { parseGithubRepo } from './updates/checker';
 
 export interface ServerConfig {
@@ -50,6 +51,11 @@ export interface ServerConfig {
   updateCheck: boolean;
   /** Observa as sessões do Codex (sources/codex/); HABBLAUD_CODEX=0 desliga. */
   codex: boolean;
+  /**
+   * Idioma da interface e dos textos que o servidor monta (HABBLAUD_LANG: `pt-BR`, o padrão, ou `en`). O servidor o
+   * repassa à página no <html lang>; shared/i18n lê a mesma variável ao carregar.
+   */
+  lang: Lang;
 }
 
 export function isTruthy(v: string | undefined): boolean {
@@ -169,5 +175,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     repo: pkg.repo,
     updateCheck: !env.HABBLAUD_UPDATE_CHECK?.trim() || isTruthy(env.HABBLAUD_UPDATE_CHECK),
     codex: !env.HABBLAUD_CODEX?.trim() || isTruthy(env.HABBLAUD_CODEX),
+    lang: parseLang(env.HABBLAUD_LANG),
   };
 }

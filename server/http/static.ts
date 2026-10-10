@@ -5,9 +5,11 @@
 //   nunca mudam de conteúdo, então podem ficar em cache por 1 ano (immutable);
 // - todo o resto (index.html e client/public: /assets/brand, /assets/art, manifest.json...) tem nome
 //   fixo e pode mudar a cada build: `no-cache` + ETag/Last-Modified, e o navegador revalida (304).
-import { createReadStream, statSync, type Stats } from 'node:fs';
+import { createReadStream, readFileSync, statSync, type Stats } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
+import type { Lang } from '../../shared/i18n';
+import { i18n } from '../../shared/i18n';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -69,12 +71,24 @@ export function isNotModified(req: IncomingMessage, etag: string, mtimeMs: numbe
   return false;
 }
 
-export function createStaticHandler(distDir: string): (req: IncomingMessage, res: ServerResponse, pathname: string) => void {
+/** O index.html com o <html lang> do idioma: é dali que o cliente lê o idioma (shared/i18n). */
+export function localizeHtml(html: string, lang: Lang): string {
+  return html.replace('<html lang="pt-BR">', `<html lang="${lang}">`);
+}
+
+export function createStaticHandler(distDir: string, lang: Lang = 'pt-BR'): (req: IncomingMessage, res: ServerResponse, pathname: string) => void {
   const root = resolve(distDir);
   const index = join(root, 'index.html');
+  // PT-BR sai como está no disco; outro idioma sai da memória (relido quando o arquivo muda).
+  let localized: { mtimeMs: number; body: Buffer } | undefined;
+  const localizedIndex = (st: Stats): Buffer => {
+    if (localized?.mtimeMs !== st.mtimeMs) localized = { mtimeMs: st.mtimeMs, body: Buffer.from(localizeHtml(readFileSync(index, 'utf8'), lang)) };
+    return localized.body;
+  };
 
   const send = (req: IncomingMessage, res: ServerResponse, file: string, st: Stats, cache: string) => {
-    const etag = etagOf(st);
+    const body = lang !== 'pt-BR' && file === index ? localizedIndex(st) : undefined;
+    const etag = body ? etagOf(st).replace(/"$/, `-${lang}"`) : etagOf(st);
     const headers: Record<string, string | number> = {
       'Cache-Control': cache,
       ETag: etag,
@@ -91,9 +105,10 @@ export function createStaticHandler(distDir: string): (req: IncomingMessage, res
     res.writeHead(200, {
       ...headers,
       'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
-      'Content-Length': st.size,
+      'Content-Length': body ? body.length : st.size,
     });
     if (req.method === 'HEAD') return void res.end();
+    if (body) return void res.end(body);
     createReadStream(file)
       .on('error', () => res.destroy())
       .pipe(res);
@@ -102,19 +117,19 @@ export function createStaticHandler(distDir: string): (req: IncomingMessage, res
   return (req, res, pathname) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { Allow: 'GET, HEAD', 'Content-Type': 'text/plain; charset=utf-8' });
-      return void res.end('Método não permitido');
+      return void res.end(i18n('Método não permitido'));
     }
     const indexStat = fileStat(index);
     if (!indexStat) {
       res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-      return void res.end('Cliente não compilado. Rode "npm run build" (ou use "npm run dev").');
+      return void res.end(i18n('Cliente não compilado. Rode "npm run build" (ou use "npm run dev").'));
     }
     let rel: string;
     try {
       rel = decodeURIComponent(pathname);
     } catch {
       res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-      return void res.end('Caminho inválido');
+      return void res.end(i18n('Caminho inválido'));
     }
     const file = resolve(root, `.${rel}`);
     const inside = file === root || file.startsWith(root + sep);
@@ -122,7 +137,7 @@ export function createStaticHandler(distDir: string): (req: IncomingMessage, res
     if (st) return send(req, res, file, st, rel.startsWith(HASHED_DIR) ? IMMUTABLE : REVALIDATE);
     if (rel.startsWith('/assets/') || rel.startsWith(HASHED_DIR)) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-      return void res.end('Não encontrado');
+      return void res.end(i18n('Não encontrado'));
     }
     // SPA: qualquer outra rota cai no index.html.
     send(req, res, index, indexStat, REVALIDATE);
