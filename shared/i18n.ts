@@ -6,13 +6,18 @@
 // - navegador: preferência salva (Configurações > Idioma), senão os idiomas do navegador;
 // - servidor: HABBLAUD_LANG, senão o idioma do sistema (LANG / LC_ALL / Intl).
 // Os textos de atividade são montados pelo servidor, então seguem o idioma do servidor.
+//
+// Idioma novo: um dicionário em ./locales, mais uma linha em Locale, LOCALES, DICTS, normalizeLocale e intlLocale
+// (e em scripts/i18n-check.ts).
+import { EN } from './locales/en';
 import { FR } from './locales/fr';
 
-export type Locale = 'pt-BR' | 'fr';
+export type Locale = 'pt-BR' | 'fr' | 'en';
 
 export const LOCALES: { id: Locale; name: string }[] = [
   { id: 'pt-BR', name: 'Português' },
   { id: 'fr', name: 'Français' },
+  { id: 'en', name: 'English' },
 ];
 
 /** Chave da preferência salva no navegador. */
@@ -21,13 +26,15 @@ export const LOCALE_STORAGE_KEY = 'habblaud:locale';
 const DICTS: Record<Locale, Readonly<Record<string, string>> | undefined> = {
   'pt-BR': undefined,
   fr: FR,
+  en: EN,
 };
 
-/** "fr-FR", "fr_CA.UTF-8", "pt", "pt_BR"... -> idioma suportado; undefined se não for nenhum deles. */
+/** "fr-FR", "fr_CA.UTF-8", "en-US", "pt", "pt_BR"... -> idioma suportado; undefined se não for nenhum deles. */
 export function normalizeLocale(v: string | null | undefined): Locale | undefined {
   const s = (v ?? '').trim().toLowerCase().replace('_', '-');
   if (!s) return undefined;
   if (s === 'fr' || s.startsWith('fr-')) return 'fr';
+  if (s === 'en' || s.startsWith('en-')) return 'en';
   if (s === 'pt' || s.startsWith('pt-')) return 'pt-BR';
   return undefined;
 }
@@ -88,7 +95,7 @@ export function tr(src: string, args?: readonly unknown[]): string {
   return s.replace(/\{(\d+)\}/g, (m, i: string) => (Number(i) < args.length ? String(args[Number(i)]) : m));
 }
 
-/** Idioma no formato do Intl (datas, números). */
+/** Idioma no formato do Intl (datas, números). Inglês usa en-GB: relógio de 24 h e dia antes do mês, como no layout em PT. */
 export function intlLocale(): string {
-  return current === 'fr' ? 'fr-FR' : 'pt-BR';
+  return current === 'fr' ? 'fr-FR' : current === 'en' ? 'en-GB' : 'pt-BR';
 }
