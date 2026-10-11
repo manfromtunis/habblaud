@@ -7861,10 +7861,21 @@ html.is-replay #world {
 }
 
 /* A linha abre com o título da sessão (pode ser longo: encolhe com reticências); "nome · sala" fica discreto. */
+/* O título da sessão é o que identifica a linha: pode ocupar duas linhas antes das reticências. */
 .ui-agent--titled .ui-agent__name {
   flex: 0 1 auto;
   min-width: 0;
   max-width: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.ui-agent--titled .ui-agent__top {
+  align-items: flex-start;
 }
 
 .ui-agent--titled .ui-agent__task {
