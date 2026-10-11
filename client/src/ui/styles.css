@@ -22,6 +22,8 @@
   /* Esperando o shell: turquesa (distinto do verde de "trabalhando" e do azul de "concluído"). */
   --st-shell: #3cd8d2;
   --st-idle: #8b98b3;
+  /* Terminou e ainda não foi visto (lista por status). */
+  --st-review: #b79cff;
   --st-done: #6aa8ff;
   --st-offline: #6b7280;
 
@@ -7770,4 +7772,147 @@ html.is-replay #world {
 
 .ui-char__reset {
   margin-left: auto;
+}
+
+/* ------------------------------------------------------------------ lista lateral por status (ui/statusgroups.ts) */
+
+/* Grupo: o cabeçalho de sala com a cor do status, um botão que recolhe e, em "Para revisar", o "Marcar todos"
+   (que desce para a linha de baixo quando não cabe ao lado do nome). */
+.ui-sgroup__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ui-sgroup__bar > .ui-room__head {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.ui-sgroup__bar > .ui-room__head:not(:last-child) {
+  padding-right: 4px;
+}
+
+.ui-sgroup .ui-room__name {
+  flex: none;
+}
+
+.ui-sgroup.is-collapsed .ui-room__head {
+  border-radius: 8px;
+}
+
+.ui-sgroup.is-pinned .ui-room__head,
+.ui-sgroup.is-input .ui-room__head {
+  --room: var(--st-waiting);
+}
+
+.ui-sgroup.is-review .ui-room__head {
+  --room: var(--st-review);
+}
+
+.ui-sgroup.is-working .ui-room__head {
+  --room: var(--st-working);
+}
+
+.ui-sgroup.is-done .ui-room__head {
+  --room: var(--st-idle);
+}
+
+.ui-sgroup__chevron {
+  margin-left: auto;
+  color: var(--ui-faint);
+  transition: transform 0.15s;
+}
+
+.ui-sgroup.is-collapsed .ui-sgroup__chevron {
+  transform: rotate(-90deg);
+}
+
+.ui-sgroup__all {
+  flex: none;
+  margin: 0 6px 0 auto;
+  white-space: nowrap;
+}
+
+/* Linha com botões ao lado (fixar em cima, revisado embaixo): o botão da linha não pode conter outros botões. */
+.ui-node__head:has(> .ui-node__acts) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.ui-node__acts {
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-node__acts > .ui-icon-btn {
+  width: 24px;
+  height: 22px;
+}
+
+.ui-node__pin {
+  color: var(--ui-faint);
+}
+
+.ui-node__pin[aria-pressed='true'] {
+  color: var(--st-waiting);
+  background: none;
+}
+
+/* A linha abre com o título da sessão (pode ser longo: encolhe com reticências); "nome · sala" fica discreto. */
+.ui-agent--titled .ui-agent__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.ui-agent--titled .ui-agent__task {
+  font-size: 11.5px;
+  color: var(--ui-muted);
+}
+
+.ui-agent__state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ui-agent__state > .ui-activity {
+  flex: 1;
+}
+
+/* Selo de status dos agentes fixados. */
+.ui-agent__pill {
+  --st: var(--st-idle);
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--st);
+  color: #0b1220;
+  font: 700 10px/15px var(--font-ui);
+  white-space: nowrap;
+}
+
+.ui-agent__pill.is-input {
+  --st: var(--st-waiting);
+}
+
+.ui-agent__pill.is-review {
+  --st: var(--st-review);
+}
+
+.ui-agent__pill.is-working {
+  --st: var(--st-working);
+}
+
+.ui-agent__pill.is-shell {
+  --st: var(--st-shell);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-sgroup__chevron {
+    transition: none;
+  }
 }
