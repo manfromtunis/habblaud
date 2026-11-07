@@ -211,6 +211,11 @@ describe('FactorySimulator', () => {
 });
 
 describe('normalizeInboxOptions', () => {
+  it('handles the factory store shape: [key, label] pairs, reco first', () => {
+    const opts = normalizeInboxOptions([['sendback', 'Send back'], ['merge', 'Merge it']], 'merge');
+    expect(opts.map((o) => o.key)).toEqual(['merge', 'sendback']);
+    expect(opts[0].label).toBe('Merge it');
+  });
   it('handles options as string array with (Recommended) sorted first', () => {
     const raw = ['Option B', 'Option A (Recommended)', 'Option C'];
     const opts = normalizeInboxOptions(raw);

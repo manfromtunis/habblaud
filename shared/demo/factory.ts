@@ -609,6 +609,9 @@ export function normalizeInboxOptions(
     list = rawOptions.map((opt, i) => {
       if (typeof opt === 'string') {
         return { key: String(i), label: opt };
+      } else if (Array.isArray(opt)) {
+        // the factory stores options as [key, label] pairs
+        return { key: String(opt[0] ?? i), label: String(opt[1] ?? opt[0] ?? i) };
       } else if (opt && typeof opt === 'object') {
         const o = opt as { key?: string; label?: string };
         const k = o.key !== undefined ? String(o.key) : String(i);

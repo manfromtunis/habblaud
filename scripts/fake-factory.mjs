@@ -130,8 +130,8 @@ export function createFakeFactoryServer(customFixtures = {}) {
         context:
           'Agent 2b07 needs confirmation on Stripe signature header.\nv1 header is deprecated but still received from older endpoints.',
         options: [
-          { key: 'v1v2', label: 'Accept v1 and v2 simultaneously (Recommended)' },
-          { key: 'v2only', label: 'Reject v1, require v2 headers only' },
+          ['v1v2', 'Accept v1 and v2 simultaneously'],
+          ['v2only', 'Reject v1, require v2 headers only'],
         ],
         reco: 'v1v2',
         project: 'bakchich / Support bot',
