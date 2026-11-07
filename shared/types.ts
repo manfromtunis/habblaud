@@ -185,6 +185,8 @@ export interface AgentInfo {
    * e perguntou pela caixa de entrada há pouco. Ver POST /api/messages.
    */
   canMessage?: boolean;
+  canReceive?: boolean;
+  thread?: string;
 }
 
 export interface RoomInfo {
@@ -325,6 +327,26 @@ export interface AccountInfo {
    * - disabled: sem números (tap de statusline não instalado e nenhum cache do /usage).
    */
   usageStatus: 'ok' | 'stale' | 'disabled';
+  tokensToday?: number;
+}
+
+export type FactoryInboxKind = 'urgent' | 'action' | 'applied';
+
+export interface FactoryInboxOption {
+  key: string;
+  label: string;
+}
+
+export interface FactoryInboxItem {
+  id: string;
+  kind: FactoryInboxKind;
+  title: string;
+  context: string;
+  options: FactoryInboxOption[];
+  reco?: string | null;
+  project: string;
+  from: string | null;
+  at: number;
 }
 
 export interface OfficeSnapshot {
@@ -335,6 +357,10 @@ export interface OfficeSnapshot {
   agents: AgentInfo[];
   /** Contas do Claude detectadas (com uso de 5h/semanal quando disponível). */
   accounts: AccountInfo[];
+  /** Itens da caixa de entrada da fábrica (modo fábrica). */
+  inbox?: FactoryInboxItem[];
+  /** Respostas a itens da caixa de entrada (modo fábrica). */
+  answers?: Record<string, { choice: string; note?: string; at: number }>;
   meta: {
     demo: boolean;
     sources: SourceInfo[];
@@ -357,6 +383,8 @@ export interface OfficeSnapshot {
     messages?: boolean;
     /** Verificação de versão nova no GitHub (ausente nos testes e no timelapse). */
     updates?: UpdateStatus;
+    /** Nome do prédio na placa (modo fábrica: machine.label). */
+    buildingName?: string;
   };
 }
 

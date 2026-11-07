@@ -39,13 +39,21 @@ interface Manifest {
   brand?: { signage?: ManifestFile; mark?: ManifestFile };
 }
 
+export function lookupAssetUrl(file: string): string {
+  if (file.startsWith('data:') || file.startsWith('blob:')) return file;
+  const g = globalThis as { __ASSET_URLS__?: Record<string, string> };
+  const clean = file.replace(/^\/+/, '');
+  const cleanNoAssets = clean.replace(/^assets\//, '');
+  return g.__ASSET_URLS__?.[clean] ?? g.__ASSET_URLS__?.[cleanNoAssets] ?? g.__ASSET_URLS__?.[file] ?? `/assets/${cleanNoAssets}`;
+}
+
 function loadImage(file: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
     img.decoding = 'async';
     img.onload = () => resolve(img.naturalWidth > 0 ? img : null);
     img.onerror = () => resolve(null);
-    img.src = `/assets/${file.replace(/^\/+/, '')}`;
+    img.src = lookupAssetUrl(file);
   });
 }
 
@@ -57,9 +65,22 @@ function validFile(f: unknown): f is ManifestFile {
 
 export async function loadWorldAssets(signal?: AbortSignal): Promise<WorldAssets | null> {
   try {
-    const res = await fetch('/assets/manifest.json', { signal, cache: 'no-cache' });
-    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return null;
-    const m = (await res.json()) as Manifest;
+    const g = globalThis as {
+      __ASSETS_MANIFEST__?: Manifest;
+      __ASSET_URLS__?: Record<string, string>;
+      __FACTORY_DEFAULT__?: boolean;
+    };
+    let m: Manifest;
+    if (g.__ASSETS_MANIFEST__) {
+      m = g.__ASSETS_MANIFEST__;
+    } else {
+      if (typeof location !== 'undefined' && (location.protocol === 'file:' || g.__FACTORY_DEFAULT__)) {
+        return null;
+      }
+      const res = await fetch('/assets/manifest.json', { signal, cache: 'no-cache' });
+      if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return null;
+      m = (await res.json()) as Manifest;
+    }
     const wallArt: WallArtAsset[] = [];
     const list = Array.isArray(m.wallArt) ? m.wallArt : [];
     const imgs = await Promise.all(list.map((a) => (validFile(a) ? loadImage(a.file) : Promise.resolve(null))));

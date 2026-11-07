@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OfficeSnapshot } from '../../../shared/types';
-import { mockOptionsFrom, OfficeStore, pageBuild, reconnectDelay, type EventSourceLike } from './store';
+import { factoryApiUrl, mockOptionsFrom, OfficeStore, pageBuild, reconnectDelay, type EventSourceLike } from './store';
 
 /** EventSource falso: o teste dispara open/error e muda o readyState. */
 class FakeSource implements EventSourceLike {
@@ -279,5 +279,169 @@ describe('personagem do projeto (store)', () => {
     const calls = fetchMock.mock.calls.length;
     expect(await new OfficeStore({ mock: true }).resetCharacter('a')).toMatch(/ao vivo/);
     expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+});
+
+describe('factoryApiUrl', () => {
+  it('preserves path when no k parameter in search', () => {
+    expect(factoryApiUrl('api/office', '')).toBe('api/office');
+    expect(factoryApiUrl('api/threads/123/messages?limit=40', '?speed=1')).toBe('api/threads/123/messages?limit=40');
+  });
+
+  it('appends k parameter from search', () => {
+    expect(factoryApiUrl('api/office', '?k=secret123')).toBe('api/office?k=secret123');
+    expect(factoryApiUrl('api/threads/123/messages?limit=40', '?k=secret123&foo=bar')).toBe(
+      'api/threads/123/messages?limit=40&k=secret123',
+    );
+  });
+});
+
+describe('OfficeStore: factory live mode', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('poll error keeps last snapshot and sets connection to closed', async () => {
+    const store = new OfficeStore({ factory: true, mock: false });
+    const initialSnap: OfficeSnapshot = {
+      rev: 1,
+      serverTime: 10_000,
+      rooms: [],
+      agents: [],
+      accounts: [],
+      meta: { demo: false, sources: [], startedAt: 0, version: 'factory' },
+    };
+    (store as unknown as { setSnapshot(s: OfficeSnapshot): void }).setSnapshot(initialSnap);
+
+    const fetchMock = vi.fn(async () => new Response('503 Service Unavailable', { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const ok = await store.pollFactoryLive();
+    expect(ok).toBe(false);
+    expect(store.connection).toBe('closed');
+    expect(store.snapshot).toBe(initialSnap);
+    expect(store.snapshot?.rev).toBe(1);
+  });
+
+  it('answerInbox posts to api/answers with JSON { [id]: { choice, note } }', async () => {
+    const store = new OfficeStore({ factory: true, mock: false, search: '?k=token123' });
+    const initialSnap: OfficeSnapshot = {
+      rev: 1,
+      serverTime: 10_000,
+      rooms: [],
+      agents: [],
+      accounts: [],
+      inbox: [
+        {
+          id: 'c102',
+          kind: 'urgent',
+          title: 'Rotate key',
+          context: 'Test context',
+          options: [{ key: 'rotate_now', label: 'Rotate immediately' }],
+          project: 'shopkit',
+          from: null,
+          at: 10_000,
+        },
+      ],
+      meta: { demo: false, sources: [], startedAt: 0, version: 'factory' },
+    };
+    (store as unknown as { setSnapshot(s: OfficeSnapshot): void }).setSnapshot(initialSnap);
+
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
+      if (String(url).includes('api/answers')) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ agents: [], inbox: [] }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await store.answerInbox('c102', 'rotate_now', 'Approved rotation');
+    expect(res).toEqual({ ok: true });
+
+    const answerCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('api/answers'));
+    expect(answerCall).toBeDefined();
+    expect(answerCall![0]).toBe('api/answers?k=token123');
+    expect(answerCall![1]).toEqual({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        c102: {
+          choice: 'rotate_now',
+          note: 'Approved rotation',
+        },
+      }),
+    });
+
+    expect(store.snapshot?.answers?.['c102']).toBeDefined();
+    expect(store.snapshot?.answers?.['c102'].choice).toBe('rotate_now');
+  });
+
+  it('answerInbox sends one POST when Save fires twice before the first returns', async () => {
+    const store = new OfficeStore({ factory: true, mock: false, search: '' });
+    (store as unknown as { setSnapshot(s: OfficeSnapshot): void }).setSnapshot({
+      rev: 1, serverTime: 0, rooms: [], agents: [], accounts: [],
+      inbox: [{ id: 'i1', kind: 'urgent', title: 't', context: '', options: [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }], project: 'p', from: null, at: 0 }],
+      meta: { demo: false, sources: [], startedAt: 0, version: 'factory' },
+    });
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const [first, second] = await Promise.all([store.answerInbox('i1', 'a'), store.answerInbox('i1', 'b')]);
+    expect(first).toEqual({ ok: true });
+    expect(second).toEqual({ ok: false, error: 'Already answered' });
+    const posts = fetchMock.mock.calls.filter((c) => String((c as unknown[])[0]).includes('api/answers'));
+    expect(posts).toHaveLength(1);
+    expect(await store.answerInbox('i1', 'b')).toEqual({ ok: false, error: 'Already answered' });
+  });
+
+  it('sendMessage posts to api/messages with JSON { thread, text }', async () => {
+    const store = new OfficeStore({ factory: true, mock: false, search: '?k=token123' });
+    const snap: OfficeSnapshot = {
+      rev: 1,
+      serverTime: 10_000,
+      rooms: [],
+      agents: [
+        {
+          id: 'factory:agent:1a3f',
+          name: '1a3f',
+          thread: 'thread-1a3f-abc',
+          kind: 'main',
+          roomId: 'r1',
+          look: 'm',
+          role: 'Main agent',
+          sessionId: 's1',
+          account: '.claude',
+          status: 'working',
+          recent: [],
+          tasks: [],
+          startedAt: 0,
+          lastEventAt: 0,
+          statusSince: 0,
+          stats: { toolCalls: 0, tokensIn: 0, tokensOut: 0, subagents: 0 },
+          seed: 1,
+          canReceive: true,
+        },
+      ],
+      accounts: [],
+      meta: { demo: false, sources: [], startedAt: 0, version: 'factory' },
+    };
+    (store as unknown as { setSnapshot(s: OfficeSnapshot): void }).setSnapshot(snap);
+
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await store.sendMessage('factory:agent:1a3f', 'Please check the tests');
+    expect('message' in res).toBe(true);
+
+    const msgCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('api/messages'));
+    expect(msgCall).toBeDefined();
+    expect(msgCall![0]).toBe('api/messages?k=token123');
+    expect(msgCall![1]).toEqual({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        thread: 'thread-1a3f-abc',
+        text: 'Please check the tests',
+      }),
+    });
   });
 });

@@ -115,6 +115,9 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
       if (action === 'overview') world.overview();
       else world.zoomBy(action === 'zoomIn' ? 1.25 : 1 / 1.25);
     },
+    openInboxTab() {
+      sidebar.openInboxTab();
+    },
     invalidate: () => invalidate(),
     togglePanel(name, open) {
       const next = open ?? !panels[name];
@@ -231,6 +234,10 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   });
   store.on('connection', () => invalidate());
   world.onSelect((sel) => {
+    if (sel?.type === 'inbox_marker') {
+      sidebar.openInboxTab();
+      return;
+    }
     const prev = selection;
     selection = sel;
     // Clique no canvas (ou agente que saiu): a gaveta espera a janela do duplo clique antes de mexer na câmera.
@@ -263,7 +270,18 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   addEventListener('keydown', (e) => onKey(e));
 
   function onKey(e: KeyboardEvent): void {
-    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.defaultPrevented) return;
+
+    // Ctrl+Enter ou Cmd+Enter: submete/salva item aberto da inbox
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      if (selection?.type === 'inbox') {
+        e.preventDefault();
+        drawer.saveInboxItem();
+        return;
+      }
+    }
+
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Escape') {
       if (help.isOpen || settings.isOpen || history.isOpen) return; // diálogo/popover tratam o próprio Esc
       // O terminal flutua sobre tudo: fecha primeiro (a busca dele, depois ele; a gaveta continua aberta).
@@ -280,6 +298,32 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
       return;
     }
     if (isTypingTarget(e.target) || help.isOpen) return;
+
+    // Teclas 1-4 selecionam opções quando gaveta da inbox está aberta
+    if (selection?.type === 'inbox' && e.key >= '1' && e.key <= '4') {
+      e.preventDefault();
+      drawer.selectInboxOption(parseInt(e.key, 10) - 1);
+      return;
+    }
+
+    // Teclas j/k e Enter na lista da inbox quando a aba da inbox estiver ativa
+    if (sidebar.currentView === 'inbox') {
+      if (e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        sidebar.moveInbox(1);
+        return;
+      }
+      if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        sidebar.moveInbox(-1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sidebar.openFocusedInbox();
+        return;
+      }
+    }
     switch (e.key) {
       case '/':
         e.preventDefault();

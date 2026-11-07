@@ -1,6 +1,6 @@
 // Gaveta de detalhes (direita): agente ou sala selecionados. Agente do Codex: selo "Codex", textos dele (onde
 // responder, o terminal, a aprovação no lugar do modo de permissão, sem custo) e a dica dos hooks do Codex.
-import type { Activity, AgentInfo, FeedItem, RoomInfo, ShellJob, TaskItem } from '../../../shared/types';
+import type { Activity, AgentInfo, FactoryInboxItem, FeedItem, RoomInfo, ShellJob, TaskItem } from '../../../shared/types';
 import { roomTheme } from '../art';
 import { createAvatarPlaceholder, updateAvatar } from './avatar';
 import { CharacterEditor } from './character-editor';
@@ -251,6 +251,16 @@ class AgentView {
   private sessionValue: HTMLElement;
   private linesPlus: HTMLElement;
   private linesMinus: HTMLElement;
+  private agentInboxCard: HTMLElement;
+  private agentInboxTitle: HTMLElement;
+  private agentInboxCtx: HTMLElement;
+  private agentInboxOpts: HTMLElement;
+  private agentInboxNote: HTMLTextAreaElement;
+  private agentInboxSave: HTMLButtonElement;
+  private agentInboxStatus: HTMLElement;
+  private agentInboxOpenItem: FactoryInboxItem | null = null;
+  private agentInboxChoice = '';
+  private agentInboxItemId: string | null = null;
 
   constructor(
     private ctx: UiContext,
@@ -384,6 +394,35 @@ class AgentView {
     const statsSec = section(i18n('Estatísticas'), this.stats.el);
     this.codexHint = h('p', { class: 'ui-codex-hint', hidden: true }, ...richText(CODEX_LIVE_HINT));
 
+    this.agentInboxTitle = h('strong', { class: 'ui-inbox-card__title', style: 'display: block; margin-bottom: 6px;' });
+    this.agentInboxCtx = h('p', { class: 'ui-inbox-drawer__ctx' });
+    this.agentInboxOpts = h('div', { class: 'ui-inbox-opts', role: 'radiogroup', attrs: { 'aria-label': 'Options' } });
+    this.agentInboxNote = h('textarea', {
+      class: 'ui-perm__reason ui-inbox-note',
+      attrs: { rows: 2, placeholder: 'Anything the agent should know (optional)', 'aria-label': 'Note for agent (optional)' },
+    });
+    this.agentInboxSave = h(
+      'button',
+      {
+        class: 'ui-btn ui-perm__btn ui-perm__btn--allow',
+        type: 'button',
+        on: { click: () => this.saveInboxItem() },
+      },
+      'Save',
+    );
+    this.agentInboxStatus = h('p', { class: 'ui-perm__status', role: 'status' });
+    this.agentInboxCard = h(
+      'section',
+      { class: 'ui-sec ui-agent-inbox-sec', hidden: true },
+      h('div', { class: 'ui-sec__head' }, h('h3', { class: 'ui-sec__title', text: 'Inbox Item' })),
+      this.agentInboxTitle,
+      this.agentInboxCtx,
+      this.agentInboxOpts,
+      this.agentInboxNote,
+      h('div', { class: 'ui-perm__actions' }, this.agentInboxSave),
+      this.agentInboxStatus,
+    );
+
     this.el = h(
       'div',
       { class: 'ui-drawer__view ui-agent-view' },
@@ -394,6 +433,7 @@ class AgentView {
       statusRow,
       this.termBtn,
       this.alert,
+      this.agentInboxCard,
       this.perm.el,
       this.shellBox,
       this.shellsSec.el,
@@ -470,7 +510,11 @@ class AgentView {
     updateAvatar(this.avatar, a, 'lg');
     setStyleVar(this.avatar, '--acc', account?.color ?? '#8b98b3');
     setText(this.name, a.name);
-    this.character.render(a, !!live);
+    if (this.ctx.store.factory) {
+      setHidden(this.character.button, true);
+    } else {
+      this.character.render(a, !!live);
+    }
     setText(this.role, roleLabel(a));
     setVariant(this.role, 'ui-role--', a.kind);
     setText(this.title, a.title ?? '');
@@ -502,10 +546,45 @@ class AgentView {
     this.followBtn.classList.toggle('is-on', following);
     this.renderTerminalButton(!!live);
 
-    // Alerta.
+    // Alerta & Inbox da fábrica.
     const waiting = a.status === 'waiting' && !!live;
-    this.perm.render(live);
-    setHidden(this.alert, !waiting || this.perm.visible);
+    const answers = this.ctx.store.snapshot?.answers ?? {};
+    // Not only 'waiting': an agent blocked on `factory answers --wait` is in a running tool call.
+    const inboxItem =
+      !!live && this.ctx.store.factory
+        ? this.ctx.store.snapshot?.inbox?.find((it) => (it.from === a.name || it.from === a.id.replace('factory:agent:', '')) && !answers[it.id])
+        : undefined;
+
+    if (inboxItem) {
+      this.agentInboxOpenItem = inboxItem;
+      const hasReco = !!inboxItem.reco && inboxItem.options.some((o) => o.key === inboxItem.reco);
+      if (this.agentInboxItemId !== inboxItem.id) {
+        // another item: start from its own recommendation, never the previous agent's pick
+        this.agentInboxItemId = inboxItem.id;
+        this.agentInboxChoice = hasReco ? inboxItem.reco! : '';
+        this.agentInboxNote.value = '';
+        setText(this.agentInboxStatus, '');
+      }
+      setHidden(this.agentInboxCard, false);
+      setHidden(this.perm.el, true);
+      setHidden(this.alert, true);
+      setText(this.agentInboxTitle, inboxItem.title);
+      setText(this.agentInboxCtx, inboxItem.context);
+      this.renderAgentInboxOptions();
+    } else {
+      this.agentInboxOpenItem = null;
+      setHidden(this.agentInboxCard, true);
+      if (this.ctx.store.factory) {
+        setHidden(this.perm.el, !a.permission);
+        if (a.permission) {
+          this.perm.render(live);
+        }
+        setHidden(this.alert, !waiting || !!a.permission);
+      } else {
+        this.perm.render(live);
+        setHidden(this.alert, !waiting || this.perm.visible);
+      }
+    }
     if (waiting) {
       const accName = account?.name ?? a.account;
       // Codex: "Vá ao Codex (Conta X)"; sem repetir quando a conta já se chama "Codex".
@@ -554,7 +633,9 @@ class AgentView {
     setHidden(this.msgSec.el, this.composer.render(live, this.id) === 'off');
 
     // Vida social (personalidade, carteira, rodas): só de quem está no escritório.
-    if (live) this.social.render(a.id, now);
+    if (this.ctx.store.factory) {
+      setHidden(this.social.el, true);
+    } else if (live) this.social.render(a.id, now);
     else setHidden(this.social.el, true);
 
     // Tarefas.
@@ -625,7 +706,8 @@ class AgentView {
   }
 
   private renderTerminalButton(live: boolean, provider = providerOf(this.last)): void {
-    const available = !!this.ctx.store.snapshot?.meta.terminal;
+    const isFactory = this.ctx.store.factory;
+    const available = isFactory ? true : !!this.ctx.store.snapshot?.meta.terminal;
     const open = this.terminal.agentId === this.id;
     // aria-disabled (e não disabled): o botão continua focável e a dica do porquê aparece no hover.
     const enabled = open || (available && live);
@@ -633,45 +715,123 @@ class AgentView {
     this.termBtn.classList.toggle('is-disabled', !enabled);
     setAttr(this.termBtn, 'aria-pressed', String(open));
     this.termBtn.classList.toggle('is-on', open);
-    setText(this.termLabel, open ? i18n('Fechar terminal') : i18n('Abrir terminal'));
+    const openText = isFactory ? 'Open thread' : i18n('Abrir terminal');
+    const closeText = isFactory ? 'Close thread' : i18n('Fechar terminal');
+    setText(this.termLabel, open ? closeText : openText);
     setTitle(
       this.termBtn,
       open
-        ? i18n('Fechar o terminal (T)')
+        ? (isFactory ? 'Close thread (T)' : i18n('Fechar o terminal (T)'))
         : !available
           ? this.ctx.store.replaying
             ? i18n('Sem terminal no timelapse: a conversa é a de agora, não a do momento reproduzido.')
             : TERMINAL_UNAVAILABLE_HINT
           : !live
             ? i18n('O agente já saiu do escritório.')
-            : i18n`Ver a conversa desta sessão como no ${provider === 'codex' ? 'Codex' : i18n('terminal do Claude Code')}, ao vivo (T)`,
+            : isFactory
+              ? 'View this session thread (T)'
+              : i18n`Ver a conversa desta sessão como no ${provider === 'codex' ? 'Codex' : i18n('terminal do Claude Code')}, ao vivo (T)`,
     );
   }
 
   private renderStats(a: AgentInfo, now: number): void {
     const s = a.stats;
     const st = this.stats;
-    st.set('tools', formatInt(s.toolCalls));
-    st.set('tokensIn', formatTokens(s.tokensIn));
-    st.set('tokensOut', formatTokens(s.tokensOut));
-    st.set('cost', s.costUSD !== undefined ? formatUSD(s.costUSD) : null);
+    const isLiveFactory = this.ctx.store.factory && !this.ctx.store.mock;
+    if (isLiveFactory) {
+      st.set('tools', s.toolCalls ? formatInt(s.toolCalls) : null);
+      st.set('tokensIn', s.tokensIn ? formatTokens(s.tokensIn) : null);
+      st.set('tokensOut', s.tokensOut ? formatTokens(s.tokensOut) : null);
+      st.set('cost', null);
+      st.show('lines', false);
+      st.set('subs', null);
+    } else {
+      st.set('tools', formatInt(s.toolCalls));
+      st.set('tokensIn', formatTokens(s.tokensIn));
+      st.set('tokensOut', formatTokens(s.tokensOut));
+      st.set('cost', s.costUSD !== undefined ? formatUSD(s.costUSD) : null);
+      const hasLines = s.linesAdded !== undefined || s.linesRemoved !== undefined;
+      st.show('lines', hasLines);
+      setText(this.linesPlus, `+${formatInt(s.linesAdded ?? 0)}`);
+      setText(this.linesMinus, `−${formatInt(s.linesRemoved ?? 0)}`);
+      st.set('subs', a.kind === 'main' ? formatInt(s.subagents) : null);
+    }
     const codex = providerOf(a) === 'codex';
-    const hasLines = s.linesAdded !== undefined || s.linesRemoved !== undefined;
-    st.show('lines', hasLines);
-    setText(this.linesPlus, `+${formatInt(s.linesAdded ?? 0)}`);
-    setText(this.linesMinus, `−${formatInt(s.linesRemoved ?? 0)}`);
-    st.set('subs', a.kind === 'main' ? formatInt(s.subagents) : null);
     st.set('model', prettyModel(a.model));
     st.set('branch', a.gitBranch ?? null);
     // Codex: a política de aprovação (quando o servidor a manda) no lugar do modo de permissão do Claude Code.
     st.label('perm', codex ? i18n('Aprovações') : i18n('Permissões'));
-    st.set('perm', a.kind !== 'main' ? null : codex ? (a.permissionMode ? codexApprovalLabel(a.permissionMode) : null) : permissionLabel(a.permissionMode));
+    st.set('perm', a.kind !== 'main' || isLiveFactory ? null : codex ? (a.permissionMode ? codexApprovalLabel(a.permissionMode) : null) : permissionLabel(a.permissionMode));
 
     setText(this.sessionValue, a.sessionId);
     setTitle(this.sessionValue, a.sessionId);
-    st.set('start', formatDateTime(a.startedAt));
-    st.set('duration', formatDuration(now - a.startedAt));
+    st.set('start', a.startedAt ? formatDateTime(a.startedAt) : null);
+    st.set('duration', a.startedAt ? formatDuration(now - a.startedAt) : null);
     st.set('bg', a.background ? i18n('Em segundo plano') : null);
+  }
+
+  selectInboxOption(idx: number): void {
+    if (!this.agentInboxOpenItem || !this.agentInboxOpenItem.options[idx]) return;
+    this.agentInboxChoice = this.agentInboxOpenItem.options[idx].key;
+    this.renderAgentInboxOptions();
+  }
+
+  async saveInboxItem(): Promise<void> {
+    if (!this.agentInboxOpenItem) return;
+    const key = this.agentInboxChoice;
+    if (!key) {
+      setText(this.agentInboxStatus, 'Pick an option first');
+      return;
+    }
+    if (this.ctx.store.snapshot?.answers?.[this.agentInboxOpenItem.id]) return; // already answered
+    const note = this.agentInboxNote.value.trim() || undefined;
+    const itemId = this.agentInboxOpenItem.id;
+    this.agentInboxSave.disabled = true;
+    setText(this.agentInboxStatus, '');
+    try {
+      const res = await this.ctx.store.answerInbox(itemId, key, note);
+      if (this.agentInboxOpenItem?.id !== itemId) return; // the card moved on to another item
+      if (res && typeof res === 'object' && !res.ok) {
+        setText(this.agentInboxStatus, res.error || i18n('Falha ao responder'));
+        return;
+      }
+      if (res === false) {
+        setText(this.agentInboxStatus, i18n('Falha ao responder'));
+        return;
+      }
+      setText(this.agentInboxStatus, '');
+      this.ctx.invalidate();
+    } finally {
+      this.agentInboxSave.disabled = false;
+    }
+  }
+
+  private renderAgentInboxOptions(): void {
+    if (!this.agentInboxOpenItem) return;
+    this.agentInboxOpts.replaceChildren(
+      ...this.agentInboxOpenItem.options.map((opt, idx) => {
+        const isRec = !!this.agentInboxOpenItem!.reco && opt.key === this.agentInboxOpenItem!.reco;
+        const isSelected = opt.key === this.agentInboxChoice;
+        const cleanLabel = opt.label.replace(/\s*\(Recommended\)/i, '').trim();
+        return h(
+          'button',
+          {
+            class: `ui-inbox-opt-btn ${isSelected ? 'is-selected' : ''}`,
+            type: 'button',
+            attrs: { 'aria-checked': String(isSelected), role: 'radio' },
+            on: {
+              click: () => {
+                this.agentInboxChoice = opt.key;
+                this.renderAgentInboxOptions();
+              },
+            },
+          },
+          h('span', { class: 'ui-inbox-opt__key', text: `${idx + 1}` }),
+          h('span', { class: 'ui-inbox-opt__label', text: cleanLabel }),
+          isRec ? h('span', { class: 'badge rec', text: 'Recommended' }) : null,
+        );
+      }),
+    );
   }
 }
 
@@ -849,6 +1009,232 @@ class RoomView {
   }
 }
 
+// ---------------------------------------------------------------- visão do item da caixa de entrada
+
+class InboxItemView {
+  readonly el: HTMLElement;
+  private id = '';
+  private item: FactoryInboxItem | null = null;
+  private selectedChoice = '';
+
+  private kindDot: HTMLElement;
+  private kindTag: HTMLElement;
+  private titleEl: HTMLElement;
+  private metaProj: HTMLElement;
+  private metaAge: HTMLElement;
+  private showAgentBtn: HTMLButtonElement;
+  private ctxEl: HTMLElement;
+  private optsContainer: HTMLElement;
+  private noteField: HTMLTextAreaElement;
+  private saveBtn: HTMLButtonElement;
+  private statusEl: HTMLElement;
+  /** The last message for this item (error, "Pick an option first"); render() writes it back. */
+  private statusMsg = '';
+
+  private setStatus(msg: string): void {
+    this.statusMsg = msg;
+    setText(this.statusEl, msg);
+  }
+
+  constructor(private ctx: UiContext) {
+    this.kindDot = h('span', { class: 'ui-inbox-dot' });
+    this.kindTag = h('span', { class: 'ui-inbox-tag' });
+    this.titleEl = h('h2', { class: 'ui-hero__name ui-inbox-drawer__title' });
+    this.metaProj = h('span', { class: 'ui-inbox-drawer__proj' });
+    this.metaAge = h('span', { class: 'ui-inbox-drawer__age' });
+    this.showAgentBtn = h('button', {
+      class: 'ui-btn ui-inbox-show-agent',
+      type: 'button',
+      hidden: true,
+      on: {
+        click: () => {
+          if (!this.item?.from) return;
+          const snap = this.ctx.store.snapshot;
+          const agent = (snap?.agents ?? []).find(
+            (a) => a.name === this.item!.from || a.id === `factory:agent:${this.item!.from}`,
+          );
+          if (agent) {
+            this.ctx.select({ type: 'agent', id: agent.id }, { focus: true });
+          }
+        },
+      },
+    });
+
+    const metaRow = h('div', { class: 'ui-inbox-drawer__meta' }, this.metaProj, h('span', { text: ' · ' }), this.metaAge, this.showAgentBtn);
+    const hero = h(
+      'div',
+      { class: 'ui-hero ui-inbox-hero' },
+      h('div', { class: 'ui-inbox-hero__head' }, this.kindDot, this.kindTag),
+      this.titleEl,
+      metaRow,
+    );
+
+    this.ctxEl = h('p', { class: 'ui-inbox-drawer__ctx' });
+    const ctxSec = section('Context', this.ctxEl);
+
+    this.optsContainer = h('div', { class: 'ui-inbox-opts', role: 'radiogroup', attrs: { 'aria-label': 'Options' } });
+    this.noteField = h('textarea', {
+      class: 'ui-perm__reason ui-inbox-note',
+      attrs: {
+        rows: 2,
+        placeholder: 'Anything the agent should know (optional)',
+        'aria-label': 'Note for agent (optional)',
+      },
+    });
+
+    this.saveBtn = h(
+      'button',
+      {
+        class: 'ui-btn ui-perm__btn ui-perm__btn--allow ui-inbox-save-btn',
+        type: 'button',
+        on: { click: () => this.save() },
+      },
+      'Save',
+    );
+
+    this.statusEl = h('p', { class: 'ui-perm__status', role: 'status' });
+
+    const form = h(
+      'div',
+      { class: 'ui-inbox-form' },
+      this.optsContainer,
+      this.noteField,
+      h('div', { class: 'ui-perm__actions' }, this.saveBtn),
+      this.statusEl,
+    );
+    const formSec = section('Decision', form);
+
+    this.el = h('div', { class: 'ui-drawer__view ui-inbox-view' }, hero, ctxSec.el, formSec.el);
+  }
+
+  get itemId(): string {
+    return this.id;
+  }
+
+  open(id: string): void {
+    if (this.id === id) return;
+    this.id = id;
+    this.item = this.ctx.store.snapshot?.inbox?.find((it) => it.id === id) ?? null;
+    const hasReco = !!this.item?.reco && this.item.options.some((o) => o.key === this.item!.reco);
+    this.selectedChoice = hasReco ? this.item!.reco! : '';
+    this.noteField.value = '';
+    this.setStatus('');
+  }
+
+  selectOptionByIndex(index: number): void {
+    if (!this.item || !this.item.options[index]) return;
+    this.selectedChoice = this.item.options[index].key;
+    this.renderOptions();
+  }
+
+  async save(choiceKey = this.selectedChoice): Promise<void> {
+    if (!this.item) return;
+    // already answered (here or on the dashboard): never post over it, the agent would get a second decision
+    if (this.ctx.store.snapshot?.answers?.[this.item.id]) return;
+    if (!choiceKey) {
+      this.setStatus('Pick an option first');
+      return;
+    }
+    const key = choiceKey;
+    const note = this.noteField.value.trim() || undefined;
+    const itemId = this.item.id;
+    this.saveBtn.disabled = true;
+    this.setStatus('');
+    try {
+      const res = await this.ctx.store.answerInbox(itemId, key, note);
+      if (this.item?.id !== itemId) return; // the panel now shows another item
+      if (res && typeof res === 'object' && !res.ok) {
+        this.setStatus(res.error || i18n('Falha ao responder'));
+        return;
+      }
+      if (res === false) {
+        this.setStatus(i18n('Falha ao responder'));
+        return;
+      }
+      this.setStatus('');
+      this.ctx.invalidate();
+    } finally {
+      this.saveBtn.disabled = false;
+    }
+  }
+
+  render(): void {
+    const snap = this.ctx.store.snapshot;
+    const live = snap?.inbox?.find((it) => it.id === this.id);
+    if (!live) {
+      if (this.item) {
+        this.ctx.select(null);
+      }
+      return;
+    }
+    this.item = live;
+    const hasReco = !!live.reco && live.options.some((o) => o.key === live.reco);
+    if (!this.selectedChoice || !live.options.some((o) => o.key === this.selectedChoice)) {
+      this.selectedChoice = hasReco ? live.reco! : '';
+    }
+
+    setVariant(this.kindDot, 'is-', live.kind);
+    setText(this.kindTag, live.kind.toUpperCase());
+    setVariant(this.kindTag, 'is-', live.kind);
+    setText(this.titleEl, live.title);
+    setText(this.metaProj, live.project);
+    setText(this.metaAge, relativeTime(live.at, this.ctx.now()));
+    setText(this.ctxEl, live.context);
+
+    if (live.from) {
+      setHidden(this.showAgentBtn, false);
+      setText(this.showAgentBtn, `Show agent (${live.from})`);
+    } else {
+      setHidden(this.showAgentBtn, true);
+    }
+
+    const answers = snap?.answers ?? {};
+    const ans = answers[live.id];
+    if (ans) {
+      const opt = live.options.find((o) => o.key === ans.choice);
+      const choiceLabel = opt ? opt.label.replace(/\s*\(Recommended\)/i, '').trim() : ans.choice;
+      setText(this.statusEl, `${choiceLabel} · waiting for the agent`);
+      setHidden(this.optsContainer, true);
+      setHidden(this.noteField, true);
+      setHidden(this.saveBtn, true);
+    } else {
+      setText(this.statusEl, this.statusMsg);
+      setHidden(this.optsContainer, false);
+      setHidden(this.noteField, false);
+      setHidden(this.saveBtn, false);
+      this.renderOptions();
+    }
+  }
+
+  private renderOptions(): void {
+    if (!this.item) return;
+    this.optsContainer.replaceChildren(
+      ...this.item.options.map((opt, idx) => {
+        const isRec = !!this.item!.reco && opt.key === this.item!.reco;
+        const isSelected = opt.key === this.selectedChoice;
+        const cleanLabel = opt.label.replace(/\s*\(Recommended\)/i, '').trim();
+        return h(
+          'button',
+          {
+            class: `ui-inbox-opt-btn ${isSelected ? 'is-selected' : ''}`,
+            type: 'button',
+            attrs: { 'aria-checked': String(isSelected), role: 'radio' },
+            on: {
+              click: () => {
+                this.selectedChoice = opt.key;
+                this.renderOptions();
+              },
+            },
+          },
+          h('span', { class: 'ui-inbox-opt__key', text: `${idx + 1}` }),
+          h('span', { class: 'ui-inbox-opt__label', text: cleanLabel }),
+          isRec ? h('span', { class: 'badge rec', text: 'Recommended' }) : null,
+        );
+      }),
+    );
+  }
+}
+
 // ---------------------------------------------------------------- gaveta
 
 export class Drawer implements UiComponent {
@@ -856,7 +1242,8 @@ export class Drawer implements UiComponent {
   private body: HTMLElement;
   private agentView: AgentView;
   private roomView: RoomView;
-  private mode: 'agent' | 'room' | null = null;
+  private inboxItemView: InboxItemView;
+  private mode: 'agent' | 'room' | 'inbox' | null = null;
   private heading: HTMLElement;
   private movable: Movable;
   /** Avisado quando a gaveta é solta ou volta ao lugar (a área livre do escritório muda). */
@@ -868,6 +1255,7 @@ export class Drawer implements UiComponent {
   ) {
     this.agentView = new AgentView(ctx, terminal);
     this.roomView = new RoomView(ctx);
+    this.inboxItemView = new InboxItemView(ctx);
     this.heading = h('span', { class: 'ui-drawer__kind' });
     const close = iconButton(ICONS.close, i18n('Fechar detalhes (Esc)'), () => ctx.select(null));
     this.body = h('div', { class: 'ui-drawer__body' });
@@ -896,14 +1284,32 @@ export class Drawer implements UiComponent {
     if (this.mode === 'agent') this.agentView.toggleFollow();
   }
 
+  selectInboxOption(idx: number): void {
+    if (this.mode === 'inbox') this.inboxItemView.selectOptionByIndex(idx);
+    else if (this.mode === 'agent') this.agentView.selectInboxOption(idx);
+  }
+
+  saveInboxItem(): void {
+    if (this.mode === 'inbox') this.inboxItemView.save();
+    else if (this.mode === 'agent') this.agentView.saveInboxItem();
+  }
+
   render(): void {
     const sel = this.ctx.selection();
-    const mode = sel?.type ?? null;
+    const mode = sel?.type === 'inbox' ? 'inbox' : sel?.type === 'agent' ? 'agent' : sel?.type === 'room' ? 'room' : null;
     if (mode !== this.mode) {
       // Gaveta fechada ou fora do agente: o editor fecha, e ao reabrir começa do estado atual do agente.
       if (this.mode === 'agent') this.agentView.character.close();
       this.mode = mode;
-      this.body.replaceChildren(...(mode === 'agent' ? [this.agentView.el] : mode === 'room' ? [this.roomView.el] : []));
+      this.body.replaceChildren(
+        ...(mode === 'agent'
+          ? [this.agentView.el]
+          : mode === 'room'
+            ? [this.roomView.el]
+            : mode === 'inbox'
+              ? [this.inboxItemView.el]
+              : []),
+      );
       this.body.scrollTop = 0;
       this.el.classList.toggle('is-open', mode !== null);
       setAttr(this.el, 'aria-hidden', mode ? 'false' : 'true');
@@ -919,6 +1325,11 @@ export class Drawer implements UiComponent {
       this.roomView.open(sel.id);
       setText(this.heading, i18n('Sala'));
       this.roomView.render();
+    } else if (sel?.type === 'inbox') {
+      if (this.inboxItemView.itemId !== sel.id) this.body.scrollTop = 0;
+      this.inboxItemView.open(sel.id);
+      setText(this.heading, 'Inbox');
+      this.inboxItemView.render();
     }
   }
 }

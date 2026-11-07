@@ -25,9 +25,16 @@ export interface ComposerEnv {
   local: boolean;
   /** Timelapse: o escritório mostrado é o do momento reproduzido. */
   replaying: boolean;
+  factory?: boolean;
 }
 
 export function composerMode(agent: AgentInfo | undefined, env: ComposerEnv): ComposerMode {
+  if (env.factory) {
+    if (agent?.kind === 'sub') return { kind: 'off', text: 'Message the parent' };
+    if (!agent || agent.status === 'offline' || agent.status === 'done') return { kind: 'off', text: 'Session ended' };
+    if (!agent.canReceive) return { kind: 'off', text: 'Not in T3: no way to deliver' };
+    return { kind: 'ready' };
+  }
   if (env.replaying) return { kind: 'off', text: i18n('Sem mensagens no timelapse: o escritório mostrado é o de outro momento') };
   if (agent?.kind === 'sub') return { kind: 'off', text: i18n('Subagentes não recebem mensagens: escreva para o agente principal') };
   if (!agent || agent.status === 'offline' || agent.status === 'done') return { kind: 'off', text: i18n('Sessão encerrada') };

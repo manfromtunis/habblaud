@@ -5,9 +5,18 @@
 // Também cuida da reconexão: quando o navegador desiste do stream (EventSource fechado após erro HTTP,
 // ex.: servidor reiniciando atrás de um proxy), tenta de novo com espera crescente.
 import type { AppearanceParts } from '../../../shared/appearance';
-import type { Activity, AgentDetail, AgentInfo, FeedItem, Notice, OfficeSnapshot, OutboxMessage, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
+import type { Activity, AgentDetail, AgentInfo, FactoryInboxItem, FeedItem, Notice, OfficeSnapshot, OutboxMessage, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
 import { DemoSimulator } from '../../../shared/demo/simulator';
+import { FactorySimulator, mapFactoryDataToSnapshot, parseTime, type FactoryOfficeResponse } from '../../../shared/demo/factory';
 import { i18n } from '../../../shared/i18n';
+
+export function factoryApiUrl(path: string, search: string = (typeof location !== 'undefined' ? location.search : '')): string {
+  const params = new URLSearchParams(search);
+  const k = params.get('k');
+  if (!k) return path;
+  const sep = path.includes('?') ? '&' : '?';
+  return `${path}${sep}k=${encodeURIComponent(k)}`;
+}
 
 export type ConnectionState = 'connecting' | 'open' | 'closed' | 'mock';
 
@@ -43,6 +52,7 @@ export interface EventSourceLike {
 
 export interface StoreOptions {
   mock?: boolean;
+  factory?: boolean;
   /** Parâmetros do modo mock (padrão: a query string da página). */
   search?: string;
   /** Fábrica do stream (padrão: `new EventSource(url)`). */
@@ -89,6 +99,7 @@ export class OfficeStore {
   feed: FeedItem[] = [];
   connection: ConnectionState = 'connecting';
   readonly mock: boolean;
+  readonly factory: boolean;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private listeners = new Map<keyof StoreEvents, Set<(value: any) => void>>();
@@ -108,9 +119,28 @@ export class OfficeStore {
   private replay = false;
   private live: { snap: OfficeSnapshot; at: number } | null = null;
 
+  private factoryLiveTimer: ReturnType<typeof setInterval> | null = null;
+  private focusHandler: (() => void) | null = null;
+  private factoryPolling = false;
+  private pendingAnswers = new Map<string, { choice: string; note?: string; at: number }>();
+  /** Item ids with an answer POST in flight: a second Save (Ctrl+Enter repeat) must not post a second decision. */
+  private answering = new Set<string>();
+
   constructor(opts: StoreOptions = {}) {
-    this.mock = !!opts.mock;
-    this.search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
+    const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
+    const params = new URLSearchParams(search);
+    const hasFactoryParam = params.has('factory');
+    const isFactoryBuild =
+      typeof (globalThis as unknown as { __FACTORY_DEFAULT__?: boolean }).__FACTORY_DEFAULT__ !== 'undefined' ||
+      (typeof document !== 'undefined' && document.documentElement?.dataset?.mode === 'factory');
+    this.factory = opts.factory ?? (hasFactoryParam || isFactoryBuild);
+    if (opts.mock !== undefined) {
+      this.mock = opts.mock;
+    } else {
+      const isFile = typeof location !== 'undefined' && location.protocol === 'file:';
+      this.mock = params.has('mock') || (this.factory ? (hasFactoryParam || isFile) : isFile);
+    }
+    this.search = search;
     this.openStream = opts.eventSource ?? ((url) => new EventSource(url));
     // Rede de volta (Wi-Fi, VPN): não espera o próximo intervalo para religar.
     if (typeof addEventListener === 'function' && !this.mock) {
@@ -130,6 +160,7 @@ export class OfficeStore {
   connect(): void {
     this.stopped = false;
     if (this.mock) return this.startMock();
+    if (this.factory) return this.startFactoryLive();
     this.startSSE();
   }
 
@@ -139,11 +170,21 @@ export class OfficeStore {
     this.closeSource();
     if (this.mockTimer) clearInterval(this.mockTimer);
     this.mockTimer = null;
+    if (this.factoryLiveTimer) clearInterval(this.factoryLiveTimer);
+    this.factoryLiveTimer = null;
+    if (this.focusHandler && typeof window !== 'undefined') {
+      window.removeEventListener('focus', this.focusHandler);
+      this.focusHandler = null;
+    }
   }
 
   /** Reconecta imediatamente (botão "Tentar agora"), sem esperar o próximo intervalo. */
   reconnectNow(): void {
     if (this.mock) return;
+    if (this.factory) {
+      void this.pollFactoryLive();
+      return;
+    }
     this.clearRetry();
     this.closeSource();
     this.stopped = false;
@@ -167,9 +208,9 @@ export class OfficeStore {
     return (this.snapshot?.agents ?? []).filter((a) => a.roomId === roomId);
   }
 
-  /** Histórico longo de um agente (servidor). No modo mock e no timelapse devolve o `recent`. */
+  /** Histórico longo de um agente (servidor). No modo mock, timelapse ou factory devolve o `recent`. */
   async agentHistory(id: string): Promise<Activity[]> {
-    if (this.mock || this.replay) return this.agent(id)?.recent ?? [];
+    if (this.mock || this.replay || this.factory) return this.agent(id)?.recent ?? [];
     const res = await fetch(`/api/agents/${encodeURIComponent(id)}`);
     if (!res.ok) return this.agent(id)?.recent ?? [];
     const detail = (await res.json()) as AgentDetail;
@@ -178,7 +219,7 @@ export class OfficeStore {
 
   /** Liga/desliga os agentes de demonstração no servidor. */
   async setDemo(enabled: boolean): Promise<boolean> {
-    if (this.mock) return true;
+    if (this.mock || this.factory) return true;
     const res = await fetch('/api/demo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -189,7 +230,7 @@ export class OfficeStore {
 
   /** "Verificar agora": pede ao servidor uma consulta ao GitHub (o resultado chega no snapshot). */
   async checkUpdates(): Promise<boolean> {
-    if (this.mock) return false;
+    if (this.mock || this.factory) return false;
     const res = await fetch('/api/updates/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     return res.ok;
   }
@@ -270,6 +311,65 @@ export class OfficeStore {
     return i18n`Não foi possível responder (erro ${res.status}).`;
   }
 
+  get inbox(): FactoryInboxItem[] {
+    return this.snapshot?.inbox ?? [];
+  }
+
+  /**
+   * Responde um item da caixa de entrada da fábrica (modo fábrica).
+   */
+  async answerInbox(id: string, choiceKey: string, note?: string): Promise<boolean | { ok: boolean; error?: string }> {
+    if (this.mockSim && 'answerInbox' in this.mockSim) {
+      const ok = (this.mockSim as FactorySimulator).answerInbox(id, choiceKey, note);
+      if (ok) this.applySnapshot(this.mockSim.snapshot());
+      return ok;
+    }
+    if (this.factory && !this.mock) {
+      if (this.answering.has(id) || this.pendingAnswers.has(id) || this.snapshot?.answers?.[id]) {
+        return { ok: false, error: 'Already answered' };
+      }
+      this.answering.add(id);
+      const url = factoryApiUrl('api/answers', this.search);
+      const body = {
+        [id]: {
+          choice: choiceKey,
+          note: note ?? '',
+        },
+      };
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          let errMsg = `Failed to answer (error ${res.status})`;
+          try {
+            const j = (await res.json()) as { error?: string };
+            if (j && typeof j.error === 'string') errMsg = j.error;
+          } catch {}
+          return { ok: false, error: errMsg };
+        }
+        this.pendingAnswers.set(id, { choice: choiceKey, note, at: Date.now() });
+        if (this.snapshot) {
+          const answers = { ...(this.snapshot.answers ?? {}) };
+          answers[id] = { choice: choiceKey, note, at: Date.now() };
+          this.applySnapshot({
+            ...this.snapshot,
+            answers,
+          });
+        }
+        void this.pollFactoryLive();
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      } finally {
+        this.answering.delete(id);
+      }
+    }
+    return false;
+  }
+
   /**
    * Grava o personagem do projeto (PUT /api/agents/:id/character). Devolve undefined se deu certo, ou a mensagem de
    * erro (nome em uso, acesso que não é local...).
@@ -314,6 +414,37 @@ export class OfficeStore {
    */
   async sendMessage(agentId: string, text: string): Promise<{ message: OutboxMessage } | { error: string }> {
     if (this.mock) return this.mockSend(agentId, text);
+    if (this.factory) {
+      const a = this.agent(agentId);
+      const thread = a?.thread ?? (a ? a.name : agentId);
+      const url = factoryApiUrl('api/messages', this.search);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ thread, text }),
+        });
+        let body: unknown;
+        try {
+          body = await res.json();
+        } catch {}
+        if (res.ok) {
+          const now = Date.now();
+          const msg: OutboxMessage = {
+            id: `msg-${now.toString(36)}`,
+            agentId,
+            status: 'queued',
+            createdAt: now,
+            updatedAt: now,
+          };
+          return { message: msg };
+        }
+        const error = (body as { error?: unknown } | undefined)?.error;
+        return { error: typeof error === 'string' ? error : `Error ${res.status}` };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : 'Network error' };
+      }
+    }
     const res = await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId, text }) });
     let body: unknown;
     try {
@@ -496,13 +627,78 @@ export class OfficeStore {
     this.retryAt = null;
   }
 
-  /** Simulador do modo ?mock=1 (também responde os pedidos de permissão fictícios). */
-  private mockSim: DemoSimulator | null = null;
+  /** Simulador do modo ?mock=1 / ?factory=1 (também responde os pedidos de permissão fictícios). */
+  private mockSim: DemoSimulator | FactorySimulator | null = null;
+
+  private startFactoryLive(): void {
+    if (this.factoryLiveTimer) return;
+    this.setConnection('connecting');
+    void this.pollFactoryLive();
+    this.factoryLiveTimer = setInterval(() => {
+      if (!this.stopped) void this.pollFactoryLive();
+    }, 10_000);
+
+    if (typeof window !== 'undefined') {
+      this.focusHandler = () => {
+        if (!this.stopped) void this.pollFactoryLive();
+      };
+      window.addEventListener('focus', this.focusHandler);
+    }
+  }
+
+  async pollFactoryLive(): Promise<boolean> {
+    if (this.factoryPolling) return false;
+    this.factoryPolling = true;
+    try {
+      const url = factoryApiUrl('api/office', this.search);
+      const res = await fetch(url);
+      if (!res.ok) {
+        this.setConnection('closed');
+        return false;
+      }
+      const data = (await res.json()) as FactoryOfficeResponse;
+
+      // Merge pending local answers into data.answers if item still in inbox
+      const combinedAnswers: Record<string, { choice: string; note?: string; at: string | number }> = {
+        ...(data.answers ?? {}),
+      };
+      for (const [ansId, ans] of this.pendingAnswers.entries()) {
+        const itemStillInInbox = (data.inbox ?? []).some((it) => it.id === ansId);
+        if (itemStillInInbox) {
+          if (!combinedAnswers[ansId]) {
+            combinedAnswers[ansId] = ans;
+          } else {
+            this.pendingAnswers.delete(ansId);
+          }
+        } else {
+          this.pendingAnswers.delete(ansId);
+        }
+      }
+      data.answers = combinedAnswers;
+
+      const now = Date.now();
+      const { snapshot, feedItems, notices } = mapFactoryDataToSnapshot(data, this.snapshot, now, false);
+      this.applySnapshot(snapshot);
+      this.applyFeed(feedItems);
+      for (const n of notices) {
+        this.emit('notice', n);
+      }
+      this.setConnection('open');
+      return true;
+    } catch {
+      this.setConnection('closed');
+      return false;
+    } finally {
+      this.factoryPolling = false;
+    }
+  }
 
   private startMock(): void {
     if (this.mockTimer) return;
     this.setConnection('mock');
-    const sim = new DemoSimulator(mockOptionsFrom(this.search));
+    const sim = this.factory
+      ? new FactorySimulator(mockOptionsFrom(this.search))
+      : new DemoSimulator(mockOptionsFrom(this.search));
     this.mockSim = sim;
     this.applySnapshot(sim.snapshot());
     this.mockTimer = setInterval(() => {

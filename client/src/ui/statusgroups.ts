@@ -15,7 +15,7 @@ export type GroupKey = 'pinned' | StatusKey;
 export const GROUP_ORDER: readonly GroupKey[] = ['pinned', 'input', 'review', 'working', 'done'];
 
 export interface SideState {
-  view: 'status' | 'rooms';
+  view: 'status' | 'rooms' | 'inbox';
   /** Grupos recolhidos ou abertos pelo usuário; sem escolha, só "Terminados" começa recolhido. */
   collapsed: Partial<Record<GroupKey, boolean>>;
   /** Sessões fixadas, na ordem em que foram fixadas. */
@@ -118,7 +118,7 @@ export function sanitizeState(raw: unknown): SideState {
   if (!raw || typeof raw !== 'object') return DEFAULT_STATE;
   const v = raw as Record<string, unknown>;
   return {
-    view: v.view === 'rooms' ? 'rooms' : 'status',
+    view: v.view === 'rooms' ? 'rooms' : v.view === 'inbox' ? 'inbox' : 'status',
     collapsed: record(v.collapsed, (x): x is boolean => typeof x === 'boolean'),
     pins: Array.isArray(v.pins) ? [...new Set(v.pins.filter((x): x is string => typeof x === 'string'))] : [],
     seen: record(v.seen, isNum),

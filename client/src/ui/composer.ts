@@ -108,9 +108,10 @@ export class MessageComposer {
   render(agent: AgentInfo | undefined, key = agent?.id ?? ''): ComposerMode['kind'] {
     const store = this.ctx.store;
     const mode = composerMode(agent, {
-      enabled: store.mock || !!store.snapshot?.meta.messages,
-      local: store.mock || isLocalHostname(location.hostname),
+      enabled: store.mock || store.factory || !!store.snapshot?.meta.messages,
+      local: store.mock || store.factory || isLocalHostname(location.hostname),
       replaying: store.replaying,
+      factory: store.factory,
     });
     this.mode = mode;
     const ready = mode.kind === 'ready';
@@ -218,7 +219,7 @@ export class MessageComposer {
     }
     const m = r.message;
     this.setState(agentId, { phase: m.status, id: m.id, error: m.error, at: Date.now() });
-    if (!isSettled(m.status)) this.poll(agentId, m.id, Date.now());
+    if (!this.ctx.store.factory && !isSettled(m.status)) this.poll(agentId, m.id, Date.now());
   }
 
   /** Consulta a situação até ela se resolver (ou o prazo acabar). Para quando outro envio toma a linha de situação. */

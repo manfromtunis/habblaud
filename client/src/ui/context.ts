@@ -43,6 +43,8 @@ export interface UiContext {
   /** Anuncia um texto para leitores de tela. */
   announce(text: string): void;
   focusSearch(): void;
+  /** Abre a aba Inbox da barra lateral (no modo fábrica). */
+  openInboxTab?(): void;
   /** Abre a ajuda; com `section`, rola até ela (ex.: "usage" = Contas e uso). */
   openHelp(section?: HelpSection): void;
   toggleSettings(): void;

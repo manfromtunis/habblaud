@@ -8,7 +8,19 @@ import { migrateLegacyKeys, safeLocalStorage } from './ui/prefs';
 migrateLegacyKeys(safeLocalStorage());
 
 const params = new URLSearchParams(location.search);
-const store = new OfficeStore({ mock: params.has('mock') });
+const isFile = location.protocol === 'file:';
+const hasFactoryParam = params.has('factory');
+const isFactoryBuild =
+  typeof (window as unknown as { __FACTORY_DEFAULT__?: boolean }).__FACTORY_DEFAULT__ !== 'undefined' ||
+  document.documentElement.dataset.mode === 'factory';
+const isFactory = hasFactoryParam || isFactoryBuild;
+const isMock = params.has('mock') || (isFactory ? (hasFactoryParam || isFile) : isFile);
+
+const store = new OfficeStore({
+  mock: isMock,
+  factory: isFactory,
+  search: location.search,
+});
 const world = createWorld(document.getElementById('world') as HTMLCanvasElement, store);
 createUI(document.getElementById('ui') as HTMLElement, store, world);
 store.connect();

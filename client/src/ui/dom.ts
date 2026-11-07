@@ -1,4 +1,5 @@
 // Utilitários de DOM da interface: criação de elementos, atualizações mínimas e listas com chave.
+import { lookupAssetUrl } from '../world/assets';
 
 type Child = Node | string | null | undefined | false;
 type Props = {
@@ -15,6 +16,13 @@ type Props = {
   attrs?: Record<string, string | number | boolean | undefined>;
 };
 
+function resolveAttrValue(name: string, value: string): string {
+  if (name === 'src' && (value.startsWith('/assets/') || value.startsWith('assets/'))) {
+    return lookupAssetUrl(value);
+  }
+  return value;
+}
+
 /** Cria um elemento com propriedades e filhos. */
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = {}, ...children: Child[]): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -26,7 +34,14 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = 
   if (props.tabIndex !== undefined) el.tabIndex = props.tabIndex;
   if (props.hidden) el.hidden = true;
   if (props.type) el.setAttribute('type', props.type);
-  if (props.attrs) for (const [k, v] of Object.entries(props.attrs)) if (v !== undefined && v !== false) el.setAttribute(k, v === true ? '' : String(v));
+  if (props.attrs) {
+    for (const [k, v] of Object.entries(props.attrs)) {
+      if (v !== undefined && v !== false) {
+        const valStr = v === true ? '' : resolveAttrValue(k, String(v));
+        el.setAttribute(k, valStr);
+      }
+    }
+  }
   if (props.on) for (const [k, fn] of Object.entries(props.on)) el.addEventListener(k, fn as EventListener);
   for (const c of children) if (c !== null && c !== undefined && c !== false) el.append(c);
   return el;

@@ -117,20 +117,28 @@ export class TopBar implements UiComponent {
     );
     this.panelGroup = panelGroup;
 
+    const leftItems: HTMLElement[] = [this.sidebarBtn];
+    if (ctx.store.factory) {
+      const qs = typeof location !== 'undefined' ? location.search || '' : '';
+      const backLink = h('a', {
+        class: 'ui-btn ui-back-btn',
+        attrs: { href: '../' + qs, title: 'Back to dashboard' },
+      }, 'Back to dashboard');
+      leftItems.push(backLink);
+    }
+    leftItems.push(
+      h(
+        'div',
+        { class: 'ui-brand' },
+        mark,
+        h('div', { class: 'ui-brand__text' }, wordmark(), h('div', { class: 'ui-topbar__status' }, this.pill, this.version.el, this.demoBadge)),
+      ),
+    );
+
     this.el = h(
       'header',
       { class: 'ui-topbar', role: 'banner' },
-      h(
-        'div',
-        { class: 'ui-topbar__left' },
-        this.sidebarBtn,
-        h(
-          'div',
-          { class: 'ui-brand' },
-          mark,
-          h('div', { class: 'ui-brand__text' }, wordmark(), h('div', { class: 'ui-topbar__status' }, this.pill, this.version.el, this.demoBadge)),
-        ),
-      ),
+      h('div', { class: 'ui-topbar__left' }, ...leftItems),
       counterWrap,
       this.usage.el,
       h('div', { class: 'ui-topbar__right' }, viewGroup, panelGroup),
@@ -166,6 +174,11 @@ export class TopBar implements UiComponent {
     // Contadores.
     const now = this.ctx.now();
     const c = computeCounters(snap, now);
+    if (store.factory) {
+      const inbox = snap?.inbox ?? [];
+      const answers = snap?.answers ?? {};
+      c.waiting = inbox.filter((i) => !answers[i.id] && (i.kind === 'urgent' || i.kind === 'action')).length;
+    }
     for (const def of COUNTERS) {
       const refs = this.counters.get(def.key)!;
       const n = c[def.key];
@@ -178,10 +191,12 @@ export class TopBar implements UiComponent {
     waiting.disabled = c.waiting === 0;
     // Pedidos que dá para responder por aqui (hook de permissão: permissões e perguntas): a dica diz quantos.
     const answerable = permissionAgents(snap?.agents ?? []).length;
-    waiting.classList.toggle('has-answer', answerable > 0);
+    waiting.classList.toggle('has-answer', answerable > 0 || (store.factory && c.waiting > 0));
     setTitle(
       waiting,
-      answerable
+      store.factory
+        ? i18n`${formatInt(c.waiting)} itens precisam de você na Inbox. Clique para abrir a Inbox.`
+        : answerable
         ? i18n`${WAITING_HINT}. ${answerable === 1 ? i18n('1 pedido (permissão ou pergunta) dá') : i18n`${answerable} pedidos (permissões ou perguntas) dão`} para responder por aqui: clique para ir até ${answerable === 1 ? i18n('ele') : i18n('cada um')} (P).`
         : i18n`${WAITING_HINT}. Clique para ir até o primeiro.`,
     );
@@ -189,11 +204,14 @@ export class TopBar implements UiComponent {
 
     this.usage.render();
     this.version.render();
+    if (store.factory) {
+      setHidden(this.version.el, true);
+    }
 
     this.sidebarBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('sidebar')));
     this.feedBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('feed')));
     this.timelapseBtn.setAttribute('aria-pressed', String(this.ctx.isTimelapseOpen()));
-    setHidden(this.timelapseBtn, store.mock);
+    setHidden(this.timelapseBtn, store.mock || store.factory);
   }
 
   private renderShells(n: number, now: number): void {
@@ -230,6 +248,10 @@ export class TopBar implements UiComponent {
   }
 
   private focusFirstWaiting(): void {
+    if (this.ctx.store.factory) {
+      this.ctx.openInboxTab?.();
+      return;
+    }
     // Quem tem pedido para responder pelo escritório vem antes (cliques seguidos passam por todos).
     const agents = this.ctx.store.snapshot?.agents ?? [];
     const sel = this.ctx.selection();
