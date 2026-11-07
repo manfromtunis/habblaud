@@ -35,7 +35,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'bakchich',
     projectName: 'New fee engine',
     name: 'bakchich / New fee engine',
-    path: '/home/melek-code/github/bakchich-monorepo/fee-engine',
+    path: '~/code/bakchich-monorepo/fee-engine',
     slot: 0,
   },
   {
@@ -43,7 +43,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'bakchich',
     projectName: 'Support bot',
     name: 'bakchich / Support bot',
-    path: '/home/melek-code/github/bakchich-monorepo/support-bot',
+    path: '~/code/bakchich-monorepo/support-bot',
     slot: 1,
   },
   {
@@ -51,7 +51,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'bakchich',
     projectName: 'Black Friday 2026',
     name: 'bakchich / Black Friday 2026',
-    path: '/home/melek-code/github/bakchich-monorepo/campaigns/bf26',
+    path: '~/code/bakchich-monorepo/campaigns/bf26',
     slot: 2,
   },
   {
@@ -59,7 +59,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'aurastack',
     projectName: 'AuraStack store',
     name: 'aurastack / AuraStack store',
-    path: '/home/melek-code/github/aurastack/storefront',
+    path: '~/code/aurastack/storefront',
     slot: 3,
   },
   {
@@ -67,7 +67,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'clip2earn',
     projectName: 'Clip2Earn V2',
     name: 'clip2earn / Clip2Earn V2',
-    path: '/home/melek-code/github/clip2earn',
+    path: '~/code/clip2earn',
     slot: 4,
   },
   {
@@ -75,7 +75,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'factory',
     projectName: 'Release manager',
     name: 'factory / Release manager',
-    path: '/home/melek-code/github/software-factory/release-mgr',
+    path: '~/code/software-factory/release-mgr',
     slot: 5,
   },
   {
@@ -83,7 +83,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'factory',
     projectName: 'Software factory',
     name: 'factory / Software factory',
-    path: '/home/melek-code/github/software-factory',
+    path: '~/code/software-factory',
     slot: 6,
   },
   {
@@ -91,7 +91,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'kick-yt',
     projectName: 'Kick to YouTube',
     name: 'kick-yt / Kick to YouTube',
-    path: '/home/melek-code/github/kick-to-youtube',
+    path: '~/code/kick-to-youtube',
     slot: 7,
   },
   {
@@ -99,7 +99,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     product: 'bakchich',
     projectName: 'Design system',
     name: 'bakchich / Design system',
-    path: '/home/melek-code/github/bakchich-monorepo/design-system',
+    path: '~/code/bakchich-monorepo/design-system',
     slot: 8,
   },
 ];
@@ -574,8 +574,20 @@ export class FactorySimulator {
       this.agents.set(agentId, agent);
     }
 
-    // Clear initial pending feed/notices so opening tick doesn't replay them
-    this.pendingFeed = [];
+    // Seed the activity feed with each agent's current activity (oldest first), so it is not empty on open.
+    this.pendingFeed = [...this.agents.values()]
+      .filter((a) => a.activity)
+      .sort((a, b) => a.activity!.at - b.activity!.at)
+      .slice(-10)
+      .map((a) => ({
+        id: `feed-${++this.seq}`,
+        agentId: a.id,
+        roomId: a.roomId,
+        agentName: a.name,
+        roomName: this.rooms.get(a.roomId)?.name ?? '',
+        account: a.account,
+        activity: a.activity!,
+      }));
     this.pendingNotices = [];
     this.dirty = false;
   }

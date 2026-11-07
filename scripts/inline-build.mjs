@@ -7,7 +7,7 @@ const __dirname = dirname(__filename);
 const root = resolve(__dirname, '..');
 const distClient = join(root, 'dist/client');
 const publicAssets = join(root, 'client/public/assets');
-const targetFile = resolve('/home/melek-code/factory-pages/proto-office/factory-office-v2.html');
+const targetFile = resolve(process.argv[2] ?? 'dist/factory-office.html');
 
 console.log('Building standalone inline HTML for Factory Office v2...');
 

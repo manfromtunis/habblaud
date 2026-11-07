@@ -88,6 +88,9 @@ describe('FactorySimulator', () => {
     const start = 10_000;
     const sim = new FactorySimulator({ seed: 42 }, start);
 
+    // The first tick hands over the seeded feed (current activity of up to 10 agents)
+    expect(sim.tick(start + 1_000).feed).toHaveLength(10);
+
     // Tick before 20s
     const earlyTick = sim.tick(start + 5_000);
     expect(earlyTick.feed).toHaveLength(0);

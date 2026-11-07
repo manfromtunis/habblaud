@@ -2,10 +2,10 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require('/home/melek-code/github/bakchich-monorepo/node_modules/playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_PATH ?? 'playwright');
 
-const htmlPath = resolve('/home/melek-code/factory-pages/proto-office/factory-office-v2.html');
-const outDir = resolve('/home/melek-code/factory-pages/proto-office');
+const htmlPath = resolve(process.argv[2] ?? 'dist/factory-office.html');
+const outDir = resolve(process.argv[3] ?? 'dist');
 
 console.log('Testing Factory Office v2 standalone in Playwright Chromium...');
 console.log(`Target: file://${htmlPath}`);

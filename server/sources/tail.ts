@@ -112,7 +112,6 @@ export class FileTail {
   private replaced(fd: number, st: { ino: number; birthtimeMs: number }): boolean {
     if (this.ino === undefined) return false;
     if (st.ino !== this.ino) return true;
-    if (this.head && !readHead(fd, this.head.length).equals(this.head)) return true;
     if (!(this.birthtimeMs > 0 && st.birthtimeMs > 0 && st.birthtimeMs !== this.birthtimeMs)) return false;
     return !!this.head && !readHead(fd, this.head.length).equals(this.head);
   }
