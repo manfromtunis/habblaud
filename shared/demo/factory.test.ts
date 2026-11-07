@@ -302,6 +302,14 @@ describe('mapFactoryDataToSnapshot', () => {
           project: 'proj-fee',
           state: 'done', // Should be omitted!
         },
+        {
+          hc: '4f44',
+          provider: 'claude',
+          product: 'core',
+          project: 'proj-fee',
+          state: 'failed', // a failed run: not working
+          task: 'Old failed build',
+        },
       ],
       tokens: { today: 987654 },
       inbox: [
@@ -315,7 +323,7 @@ describe('mapFactoryDataToSnapshot', () => {
             ['opt2', 'Accept'],
           ],
           reco: 'opt2',
-          project: 'Support service',
+          project: 'proj-supp',
           from: '2b07',
           at: '2026-11-07T16:00:00Z',
         },
@@ -331,11 +339,15 @@ describe('mapFactoryDataToSnapshot', () => {
 
     const { snapshot, feedItems } = mapFactoryDataToSnapshot(data, null, 1714000000000);
 
+    // failed runs are not counted as working; inbox items show the project name, not its id
+    expect(snapshot.agents.find((a) => a.name === '4f44')?.status).toBe('idle');
+    expect(snapshot.inbox?.[0].project).toBe('Support service');
+
     // 1. Building name from machine.label
     expect(snapshot.meta.buildingName).toBe('factory-prod-1');
 
     // 2. Agents in 'done' leave
-    expect(snapshot.agents).toHaveLength(3);
+    expect(snapshot.agents).toHaveLength(4);
     expect(snapshot.agents.some((a) => a.name === '9z99')).toBe(false);
 
     // 3. Subagents check

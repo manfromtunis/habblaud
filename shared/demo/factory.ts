@@ -764,7 +764,8 @@ export function mapFactoryDataToSnapshot(
     let status: AgentInfo['status'] = 'working';
     if (row.state === 'waiting') status = 'waiting';
     else if (row.state === 'stalled' || row.state === 'quota') status = 'idle';
-    else if (row.state === 'running' || row.state === 'failed') status = 'working';
+    else if (row.state === 'failed') status = 'idle'; // a failed run is not working: the error activity marks it
+    else if (row.state === 'running') status = 'working';
     else if (row.state === 'unknown') status = 'idle';
 
     // Activity: task before t3Status
@@ -943,7 +944,7 @@ export function mapFactoryDataToSnapshot(
     context: item.context,
     options: normalizeInboxOptions(item.options, item.reco),
     reco: item.reco ?? null,
-    project: item.project,
+    project: (item.project && projectsById.get(item.project)?.name) || item.project, // the name, like the rooms
     from: item.from ?? null,
     at: parseTime(item.at, now),
   }));

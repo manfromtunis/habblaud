@@ -122,7 +122,6 @@ export class OfficeStore {
   private factoryLiveTimer: ReturnType<typeof setInterval> | null = null;
   private focusHandler: (() => void) | null = null;
   private factoryPolling = false;
-  private lastAppliedPollAt = 0;
   private pendingAnswers = new Map<string, { choice: string; note?: string; at: number }>();
 
   constructor(opts: StoreOptions = {}) {
@@ -650,11 +649,6 @@ export class OfficeStore {
         return false;
       }
       const data = (await res.json()) as FactoryOfficeResponse;
-      const pollTime = parseTime(data.builtAt, Date.now());
-      if (pollTime < this.lastAppliedPollAt) {
-        return false;
-      }
-      this.lastAppliedPollAt = pollTime;
 
       // Merge pending local answers into data.answers if item still in inbox
       const combinedAnswers: Record<string, { choice: string; note?: string; at: string | number }> = {

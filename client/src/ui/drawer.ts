@@ -1110,7 +1110,10 @@ class InboxItemView {
 
   async save(choiceKey = this.selectedChoice): Promise<void> {
     if (!this.item) return;
-    if (!choiceKey) return; // Fix 8: Ctrl+Enter does nothing until a choice is picked
+    if (!choiceKey) {
+      setText(this.statusEl, 'Pick an option first');
+      return;
+    }
     const key = choiceKey;
     const note = this.noteField.value.trim() || undefined;
     this.saveBtn.disabled = true;
