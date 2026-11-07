@@ -19,8 +19,9 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const HOME = process.env.HOME || os.homedir();
 
-const PLAYWRIGHT_PATH = path.join(HOME, 'github', 'bakchich-monorepo', 'node_modules', 'playwright', 'index.mjs');
-const SCREENSHOT_DIR = path.join(HOME, 'factory-pages', 'proto-office');
+// PLAYWRIGHT_PATH: a Playwright install's index.mjs (Habblaud does not depend on Playwright); SHOT_DIR: where screenshots go
+const PLAYWRIGHT_PATH = process.env.PLAYWRIGHT_PATH ?? 'playwright';
+const SCREENSHOT_DIR = process.env.SHOT_DIR ?? path.join(REPO_ROOT, 'dist', 'shots');
 const SCREENSHOT_1 = path.join(SCREENSHOT_DIR, 'live-1440.png');
 const SCREENSHOT_2 = path.join(SCREENSHOT_DIR, 'live-thread-1440.png');
 
