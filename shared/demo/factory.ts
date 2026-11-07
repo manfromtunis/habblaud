@@ -807,7 +807,7 @@ export function mapFactoryDataToSnapshot(
     }
 
     const tasks: TaskItem[] = [
-      { id: '1', title: row.title || row.task || row.hc, status: status === 'idle' ? 'completed' : 'in_progress' },
+      { id: '1', title: row.title || row.task || row.hc, status: status === 'idle' && row.state !== 'failed' ? 'completed' : 'in_progress' },
     ];
 
     const stats: AgentStats = row.stats ?? prevAgent?.stats ?? (isMock ? {

@@ -260,6 +260,7 @@ class AgentView {
   private agentInboxStatus: HTMLElement;
   private agentInboxOpenItem: FactoryInboxItem | null = null;
   private agentInboxChoice = '';
+  private agentInboxItemId: string | null = null;
 
   constructor(
     private ctx: UiContext,
@@ -556,8 +557,12 @@ class AgentView {
     if (inboxItem) {
       this.agentInboxOpenItem = inboxItem;
       const hasReco = !!inboxItem.reco && inboxItem.options.some((o) => o.key === inboxItem.reco);
-      if (!this.agentInboxChoice || !inboxItem.options.some((o) => o.key === this.agentInboxChoice)) {
+      if (this.agentInboxItemId !== inboxItem.id) {
+        // another item: start from its own recommendation, never the previous agent's pick
+        this.agentInboxItemId = inboxItem.id;
         this.agentInboxChoice = hasReco ? inboxItem.reco! : '';
+        this.agentInboxNote.value = '';
+        setText(this.agentInboxStatus, '');
       }
       setHidden(this.agentInboxCard, false);
       setHidden(this.perm.el, true);
@@ -773,7 +778,11 @@ class AgentView {
   async saveInboxItem(): Promise<void> {
     if (!this.agentInboxOpenItem) return;
     const key = this.agentInboxChoice;
-    if (!key) return; // Fix 8: Ctrl+Enter does nothing until a choice is picked
+    if (!key) {
+      setText(this.agentInboxStatus, 'Pick an option first');
+      return;
+    }
+    if (this.ctx.store.snapshot?.answers?.[this.agentInboxOpenItem.id]) return; // already answered
     const note = this.agentInboxNote.value.trim() || undefined;
     this.agentInboxSave.disabled = true;
     setText(this.agentInboxStatus, '');
@@ -1016,6 +1025,13 @@ class InboxItemView {
   private noteField: HTMLTextAreaElement;
   private saveBtn: HTMLButtonElement;
   private statusEl: HTMLElement;
+  /** The last message for this item (error, "Pick an option first"); render() writes it back. */
+  private statusMsg = '';
+
+  private setStatus(msg: string): void {
+    this.statusMsg = msg;
+    setText(this.statusEl, msg);
+  }
 
   constructor(private ctx: UiContext) {
     this.kindDot = h('span', { class: 'ui-inbox-dot' });
@@ -1099,7 +1115,7 @@ class InboxItemView {
     const hasReco = !!this.item?.reco && this.item.options.some((o) => o.key === this.item!.reco);
     this.selectedChoice = hasReco ? this.item!.reco! : '';
     this.noteField.value = '';
-    setText(this.statusEl, '');
+    this.setStatus('');
   }
 
   selectOptionByIndex(index: number): void {
@@ -1110,25 +1126,27 @@ class InboxItemView {
 
   async save(choiceKey = this.selectedChoice): Promise<void> {
     if (!this.item) return;
+    // already answered (here or on the dashboard): never post over it, the agent would get a second decision
+    if (this.ctx.store.snapshot?.answers?.[this.item.id]) return;
     if (!choiceKey) {
-      setText(this.statusEl, 'Pick an option first');
+      this.setStatus('Pick an option first');
       return;
     }
     const key = choiceKey;
     const note = this.noteField.value.trim() || undefined;
     this.saveBtn.disabled = true;
-    setText(this.statusEl, '');
+    this.setStatus('');
     try {
       const res = await this.ctx.store.answerInbox(this.item.id, key, note);
       if (res && typeof res === 'object' && !res.ok) {
-        setText(this.statusEl, res.error || i18n('Falha ao responder'));
+        this.setStatus(res.error || i18n('Falha ao responder'));
         return;
       }
       if (res === false) {
-        setText(this.statusEl, i18n('Falha ao responder'));
+        this.setStatus(i18n('Falha ao responder'));
         return;
       }
-      setText(this.statusEl, '');
+      this.setStatus('');
       this.ctx.invalidate();
     } finally {
       this.saveBtn.disabled = false;
@@ -1175,7 +1193,7 @@ class InboxItemView {
       setHidden(this.noteField, true);
       setHidden(this.saveBtn, true);
     } else {
-      setText(this.statusEl, '');
+      setText(this.statusEl, this.statusMsg);
       setHidden(this.optsContainer, false);
       setHidden(this.noteField, false);
       setHidden(this.saveBtn, false);
