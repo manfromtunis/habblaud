@@ -432,7 +432,9 @@ export class Overlay {
       }
       if (room ? readable : zoom >= 1.4) {
         if (vis.id === 'core:recepcao' && this.sim.snapshot?.inbox !== undefined) {
-          const inbox = this.sim.snapshot.inbox;
+          // answered items wait for the agent: the mailbox counts only what still needs the owner
+          const answers = this.sim.snapshot.answers ?? {};
+          const inbox = this.sim.snapshot.inbox.filter((i) => !answers[i.id]);
           const urgentCount = inbox.filter((i) => i.kind === 'urgent' || i.kind === 'action').length;
           const mcx = this.sx((r.x + r.w / 2) * TILE);
           const mcy = this.sy((r.y + 2.5) * TILE);
@@ -451,7 +453,9 @@ export class Overlay {
         this.drawRoomPill(room.info.name, cx, cy, colW - 8, room.accounts, this.countIn(room.id), room.theme.accent, room.lightOn);
       } else if (CORE_NAMES[vis.id]) {
         if (vis.id === 'core:recepcao' && this.sim.snapshot?.inbox !== undefined) {
-          const inbox = this.sim.snapshot.inbox;
+          // answered items wait for the agent: the mailbox counts only what still needs the owner
+          const answers = this.sim.snapshot.answers ?? {};
+          const inbox = this.sim.snapshot.inbox.filter((i) => !answers[i.id]);
           const urgentCount = inbox.filter((i) => i.kind === 'urgent' || i.kind === 'action').length;
           this.drawInboxMarker(cx, cy - 4, inbox.length, urgentCount);
         } else {
