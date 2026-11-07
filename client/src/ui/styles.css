@@ -2524,6 +2524,8 @@
   align-items: center;
   gap: 8px;
   width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
   padding: 7px 8px;
   border-radius: var(--radius-sm);
   background: var(--ui-bg-soft);
@@ -2575,8 +2577,10 @@
   font-weight: 500;
   color: var(--ui-text);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .ui-inbox-card__meta {
