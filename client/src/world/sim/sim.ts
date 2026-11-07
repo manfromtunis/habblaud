@@ -114,6 +114,9 @@ export class Sim {
   /** Festa e alarme das salas (eventos do GitHub; sim/github.ts). */
   readonly roomFx = new RoomFxState();
   private lastSnapshot: OfficeSnapshot | null = null;
+  get snapshot(): OfficeSnapshot | null {
+    return this.lastSnapshot;
+  }
   /** Desde quando há uma vaga livre antes da última sala (0 = não há). */
   private gapSince = 0;
   private moveSeq = 0;

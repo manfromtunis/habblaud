@@ -164,6 +164,13 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore): Worl
     const tx = Math.floor(w.x / TILE);
     const ty = Math.floor(w.y / TILE);
     for (const room of sim.rooms.values()) if (room.present && !room.ghost && inRect(room.layout.rect, tx, ty)) return { type: 'room', id: room.id };
+    if (sim.snapshot?.inbox !== undefined) {
+      for (const area of sim.building.core) {
+        if (area.id === 'core:recepcao' && inRect(area.rect, tx, ty)) {
+          return { type: 'inbox_marker', id: 'inbox' };
+        }
+      }
+    }
     return null;
   };
 
@@ -262,7 +269,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore): Worl
       if (soundCbs.size && !playback) cues.update(now, (c) => soundCbs.forEach((cb) => cb(c)));
       if (mouse) {
         const hit = pick(mouse.x, mouse.y);
-        setHover(hit?.type === 'agent' ? hit.id : null);
+        setHover(hit?.type === 'agent' ? hit.id : hit?.type === 'inbox_marker' ? 'inbox_marker' : null);
       }
       // seleção de quem já foi embora
       if (selection?.type === 'agent' && !sim.chars.has(selection.id)) setSelection(null);

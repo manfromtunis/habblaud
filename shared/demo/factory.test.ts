@@ -116,4 +116,90 @@ describe('FactorySimulator', () => {
     expect(updated.permission).toBeUndefined();
     expect(updated.activity?.text).toBe('Approved in Office');
   });
+
+  it('snapshot has ~8 inbox items with urgent, action, applied kinds, recommended first, waiting agent links', () => {
+    const start = 10_000;
+    const sim = new FactorySimulator({ seed: 42 }, start);
+    const snap = sim.snapshot(start);
+
+    expect(snap.inbox).toBeDefined();
+    expect(snap.inbox!.length).toBe(8);
+
+    const urgent = snap.inbox!.filter((i) => i.kind === 'urgent');
+    const action = snap.inbox!.filter((i) => i.kind === 'action');
+    const applied = snap.inbox!.filter((i) => i.kind === 'applied');
+
+    expect(urgent).toHaveLength(2);
+    expect(action).toHaveLength(3);
+    expect(applied).toHaveLength(3);
+
+    // Title <80 chars and verb-first
+    for (const item of snap.inbox!) {
+      expect(item.title.length).toBeLessThan(80);
+      expect(/^[A-Z][a-z]+/.test(item.title)).toBe(true);
+      // Context <= 3 lines
+      const lines = item.context.split('\n');
+      expect(lines.length).toBeLessThanOrEqual(3);
+      // Options present with reco first
+      expect(item.options.length).toBeGreaterThanOrEqual(1);
+    }
+
+    // Applied items have one option 'Seen'
+    for (const item of applied) {
+      expect(item.options).toHaveLength(1);
+      expect(item.options[0].label).toBe('Seen');
+    }
+
+    // Items from waiting agents (2b07, 2e77)
+    const from2b07 = snap.inbox!.find((i) => i.from === '2b07');
+    const from2e77 = snap.inbox!.find((i) => i.from === '2e77');
+    expect(from2b07).toBeDefined();
+    expect(from2e77).toBeDefined();
+  });
+
+  it('answering removes the item, frees the waiting agent, adds a feed item', () => {
+    const start = 10_000;
+    const sim = new FactorySimulator({ seed: 42 }, start);
+    const snapBefore = sim.snapshot(start);
+
+    const item = snapBefore.inbox!.find((i) => i.id === 'a538')!;
+    expect(item).toBeDefined();
+    expect(item.from).toBe('2b07');
+
+    const agentBefore = snapBefore.agents.find((a) => a.name === '2b07')!;
+    expect(agentBefore.status).toBe('waiting');
+
+    const ok = sim.answerInbox('a538', 'v1v2', 'Approved fallback', start + 1_000);
+    expect(ok).toBe(true);
+
+    const snapAfter = sim.snapshot(start + 1_000);
+    expect(snapAfter.inbox!.find((i) => i.id === 'a538')).toBeUndefined();
+    expect(snapAfter.inbox!.length).toBe(7);
+
+    // Agent freed
+    const agentAfter = snapAfter.agents.find((a) => a.name === '2b07')!;
+    expect(agentAfter.status).toBe('working');
+    expect(agentAfter.permission).toBeUndefined();
+
+    // Feed item added
+    const tickResult = sim.tick(start + 1_000);
+    const feed = tickResult.feed.find((f) => f.activity?.text.includes('You answered a538'));
+    expect(feed).toBeDefined();
+  });
+
+  it('applied "Seen" works', () => {
+    const start = 10_000;
+    const sim = new FactorySimulator({ seed: 42 }, start);
+
+    const ok = sim.answerInbox('e204', 'seen', undefined, start + 1_000);
+    expect(ok).toBe(true);
+
+    const snapAfter = sim.snapshot(start + 1_000);
+    expect(snapAfter.inbox!.find((i) => i.id === 'e204')).toBeUndefined();
+    expect(snapAfter.inbox!.length).toBe(7);
+
+    const tickResult = sim.tick(start + 1_000);
+    const feed = tickResult.feed.find((f) => f.activity?.text.includes('You answered e204: Seen'));
+    expect(feed).toBeDefined();
+  });
 });

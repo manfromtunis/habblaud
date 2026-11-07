@@ -173,6 +173,10 @@ export class TopBar implements UiComponent {
     // Contadores.
     const now = this.ctx.now();
     const c = computeCounters(snap, now);
+    if (store.factory) {
+      const inbox = snap?.inbox ?? [];
+      c.waiting = inbox.filter((i) => i.kind === 'urgent' || i.kind === 'action').length;
+    }
     for (const def of COUNTERS) {
       const refs = this.counters.get(def.key)!;
       const n = c[def.key];
@@ -185,10 +189,12 @@ export class TopBar implements UiComponent {
     waiting.disabled = c.waiting === 0;
     // Pedidos que dá para responder por aqui (hook de permissão: permissões e perguntas): a dica diz quantos.
     const answerable = permissionAgents(snap?.agents ?? []).length;
-    waiting.classList.toggle('has-answer', answerable > 0);
+    waiting.classList.toggle('has-answer', answerable > 0 || (store.factory && c.waiting > 0));
     setTitle(
       waiting,
-      answerable
+      store.factory
+        ? i18n`${formatInt(c.waiting)} itens precisam de você na Inbox. Clique para abrir a Inbox.`
+        : answerable
         ? i18n`${WAITING_HINT}. ${answerable === 1 ? i18n('1 pedido (permissão ou pergunta) dá') : i18n`${answerable} pedidos (permissões ou perguntas) dão`} para responder por aqui: clique para ir até ${answerable === 1 ? i18n('ele') : i18n('cada um')} (P).`
         : i18n`${WAITING_HINT}. Clique para ir até o primeiro.`,
     );
@@ -237,6 +243,10 @@ export class TopBar implements UiComponent {
   }
 
   private focusFirstWaiting(): void {
+    if (this.ctx.store.factory) {
+      this.ctx.openInboxTab?.();
+      return;
+    }
     // Quem tem pedido para responder pelo escritório vem antes (cliques seguidos passam por todos).
     const agents = this.ctx.store.snapshot?.agents ?? [];
     const sel = this.ctx.selection();

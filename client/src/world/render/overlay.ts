@@ -429,7 +429,18 @@ export class Overlay {
           this.place(ax, ay, w, h);
         }
       }
-      if (room ? readable : zoom >= 1.4) continue;
+      if (room ? readable : zoom >= 1.4) {
+        if (vis.id === 'core:recepcao' && this.sim.snapshot?.inbox !== undefined) {
+          const inbox = this.sim.snapshot.inbox;
+          const urgentCount = inbox.filter((i) => i.kind === 'urgent' || i.kind === 'action').length;
+          const mcx = this.sx((r.x + r.w / 2) * TILE);
+          const mcy = this.sy((r.y + 2.5) * TILE);
+          if (mcx > -100 && mcx < vw + 100 && mcy > -50 && mcy < vh + 50) {
+            this.drawInboxMarker(mcx, mcy, inbox.length, urgentCount);
+          }
+        }
+        continue;
+      }
       const cx = this.sx((r.x + r.w / 2) * TILE);
       const cy = this.sy(r.y * TILE + 6);
       if (cx < -200 || cx > vw + 200 || cy < -40 || cy > vh + 40) continue;
@@ -438,7 +449,13 @@ export class Overlay {
         if (!room.present || room.ghost || (anim && anim.walls < 0.6)) continue;
         this.drawRoomPill(room.info.name, cx, cy, colW - 8, room.accounts, this.countIn(room.id), room.theme.accent, room.lightOn);
       } else if (CORE_NAMES[vis.id]) {
-        this.drawCorePill(CORE_NAMES[vis.id], cx, cy, colW - 8);
+        if (vis.id === 'core:recepcao' && this.sim.snapshot?.inbox !== undefined) {
+          const inbox = this.sim.snapshot.inbox;
+          const urgentCount = inbox.filter((i) => i.kind === 'urgent' || i.kind === 'action').length;
+          this.drawInboxMarker(cx, cy - 4, inbox.length, urgentCount);
+        } else {
+          this.drawCorePill(CORE_NAMES[vis.id], cx, cy, colW - 8);
+        }
       }
     }
   }
@@ -588,6 +605,40 @@ export class Overlay {
     ctx.font = font;
     ctx.fillStyle = '#e8ecf5';
     ctx.fillText(text, x + 7, y + h / 2 + 1);
+    this.place(x, y, w, h);
+  }
+
+  private drawInboxMarker(cx: number, cy: number, count: number, urgentCount: number): void {
+    const { ctx } = this;
+    const font = `700 11px ${UI_FONT}`;
+    const text = `📬 ${count}`;
+    const tw = this.measure(font, text);
+    const w = Math.round(tw + 18);
+    const h = 22;
+    const x = Math.round(cx - w / 2);
+    const y = Math.round(cy - h / 2);
+    ctx.save();
+    ctx.fillStyle = 'rgba(16, 20, 32, 0.35)';
+    ctx.beginPath();
+    ctx.roundRect(x, y + 2, w, h, 8);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(22, 28, 45, 0.94)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 8);
+    ctx.fill();
+
+    ctx.strokeStyle = urgentCount > 0 ? '#f59e0b' : 'rgba(129, 140, 248, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 8);
+    ctx.stroke();
+
+    ctx.font = font;
+    ctx.fillStyle = '#f8fafc';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, cx, y + h / 2 + 1);
+    ctx.restore();
     this.place(x, y, w, h);
   }
 

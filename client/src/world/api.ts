@@ -2,7 +2,7 @@
 // Implementação: client/src/world/index.ts -> createWorld().
 // Regra: mudanças aqui devem ser ADITIVAS.
 
-export type Selection = { type: 'agent'; id: string } | { type: 'room'; id: string } | null;
+export type Selection = { type: 'agent'; id: string } | { type: 'room'; id: string } | { type: 'inbox'; id: string } | { type: 'inbox_marker'; id: string } | null;
 
 export interface WorldOptions {
   /** Mostrar etiquetas com os nomes dos personagens. */

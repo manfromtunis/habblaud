@@ -1,15 +1,20 @@
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve, dirname, extname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const root = resolve(__dirname, '..');
 const distClient = join(root, 'dist/client');
 const publicAssets = join(root, 'client/public/assets');
-const targetFile = resolve(process.argv[2] ?? 'dist/factory-office.html');
+let rawTarget = process.argv[2] ?? 'dist/factory-office.html';
+if (rawTarget.startsWith('~/')) {
+  rawTarget = join(os.homedir(), rawTarget.slice(2));
+}
+const targetFile = resolve(rawTarget);
 
-console.log('Building standalone inline HTML for Factory Office v2...');
+console.log('Building standalone inline HTML for Factory Office...');
 
 if (!existsSync(distClient)) {
   throw new Error(`dist/client does not exist. Run npm run build:client first.`);

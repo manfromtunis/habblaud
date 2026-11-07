@@ -9,6 +9,9 @@ import type {
   Activity,
   AgentInfo,
   AgentStats,
+  FactoryInboxItem,
+  FactoryInboxKind,
+  FactoryInboxOption,
   FeedItem,
   Notice,
   OfficeSnapshot,
@@ -440,6 +443,106 @@ const INITIAL_FEEDS: readonly string[] = [
   '1a10 completed build',
 ];
 
+export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
+  // 1. Urgent decision from waiting agent 2b07
+  {
+    id: 'a538',
+    kind: 'urgent',
+    title: 'Approve legacy Stripe webhook v1 fallback',
+    context: 'Agent 2b07 needs confirmation on Stripe signature header.\nv1 header is deprecated but still received from older endpoints.\nRejecting may drop incoming payment callbacks.',
+    options: [
+      { key: 'v1v2', label: 'Accept v1 and v2 simultaneously (Recommended)' },
+      { key: 'v2only', label: 'Reject v1, require v2 headers only' },
+      { key: 'more_ctx', label: 'Request more context from agent' },
+    ],
+    project: 'bakchich / Support bot',
+    from: '2b07',
+  },
+  // 2. Urgent decision (no agent)
+  {
+    id: 'c102',
+    kind: 'urgent',
+    title: 'Rotate staging API key for AuraStack',
+    context: 'Sentry reported an exposed secret in staging logs.\nImmediate key rotation will invalidate active preview sessions.\nChoose key rotation window.',
+    options: [
+      { key: 'rotate_now', label: 'Rotate immediately and invalidate sessions (Recommended)' },
+      { key: 'schedule', label: 'Schedule rotation in 30 minutes' },
+    ],
+    project: 'aurastack / AuraStack store',
+    from: null,
+  },
+  // 3. Action item with numbered steps from waiting agent 2e77
+  {
+    id: 'd547',
+    kind: 'action',
+    title: 'Sign off v2.4 production deploy',
+    context: '1. Verify migration idempotency on staging cluster\n2. Run smoke test suite on production cluster\n3. Promote docker image to live traffic',
+    options: [
+      { key: 'approve', label: 'Approve immediate deployment (Recommended)' },
+      { key: 'hold', label: 'Hold deployment pending QA checks' },
+      { key: 'cancel', label: 'Cancel release' },
+    ],
+    project: 'factory / Release manager',
+    from: '2e77',
+  },
+  // 4. Action item with numbered steps (no agent)
+  {
+    id: 'b819',
+    kind: 'action',
+    title: 'Execute fee engine database backfill',
+    context: '1. Lock tier_rates table for migration\n2. Backfill historical records for Q3 2026\n3. Validate checksums across 12 partitions',
+    options: [
+      { key: 'run_now', label: 'Execute backfill during off-peak window (Recommended)' },
+      { key: 'dry_run', label: 'Run dry-run simulation only' },
+    ],
+    project: 'bakchich / New fee engine',
+    from: null,
+  },
+  // 5. Merge ask
+  {
+    id: 'm701',
+    kind: 'action',
+    title: 'Merge factory#70: Support bot webhook handler',
+    context: 'PR #70 passed all CI checks (3/3 passing).\nFixes Stripe signature verification bug and adds regression suite.\nReady to merge.',
+    options: [
+      { key: 'merge', label: 'Merge factory#70 into main (Recommended)' },
+      { key: 'hold', label: 'Hold PR for manual review' },
+    ],
+    project: 'bakchich / Support bot',
+    from: null,
+  },
+  // 6. Applied item (information, one option "Seen")
+  {
+    id: 'e204',
+    kind: 'applied',
+    title: 'Publish weekly support digest',
+    context: 'Scanned 142 customer conversations in Chatwoot.\nTop 3 asks: dark mode fixes, invoice PDF export, webhook retries.\nDigest saved to factory data.',
+    options: [{ key: 'seen', label: 'Seen' }],
+    project: 'bakchich / Support bot',
+    from: null,
+  },
+  // 7. Applied item (information, one option "Seen")
+  {
+    id: 'f311',
+    kind: 'applied',
+    title: 'Apply automated linter fixes',
+    context: 'ESLint & Prettier formatted 38 files in docker/.\nAll commit hooks succeeded without syntax errors.\nNo manual intervention needed.',
+    options: [{ key: 'seen', label: 'Seen' }],
+    project: 'factory / Software factory',
+    from: null,
+  },
+  // 8. Applied item (information, one option "Seen")
+  {
+    id: 'g452',
+    kind: 'applied',
+    title: 'Complete Redis cache warmup',
+    context: 'Pre-loaded 45,000 product keys for Black Friday campaign.\nLatency dropped to 0.4ms across Europe-West nodes.\nMemory utilization at 34%.',
+    options: [{ key: 'seen', label: 'Seen' }],
+    project: 'bakchich / Black Friday 2026',
+    from: null,
+  },
+];
+
 const TICK_ACTIVITIES: readonly {
   text: string;
   kind: Activity['kind'];
@@ -466,6 +569,7 @@ export class FactorySimulator {
   private pendingFeed: FeedItem[] = [];
   private pendingNotices: Notice[] = [];
   private tickStep = 0;
+  private inbox: FactoryInboxItem[] = [];
 
   constructor(opts: DemoOptions = {}, now = Date.now()) {
     this.rng = mulberry32(opts.seed ?? hash32(`factory:${now}`));
@@ -574,6 +678,14 @@ export class FactorySimulator {
       this.agents.set(agentId, agent);
     }
 
+    // 3. Build initial ~8 mock inbox items
+    const offsets = [180_000, 360_000, 120_000, 420_000, 90_000, 600_000, 750_000, 900_000];
+    this.inbox = INITIAL_INBOX_SPECS.map((spec, i) => ({
+      ...spec,
+      options: spec.options.map((o) => ({ ...o })),
+      at: now - (offsets[i] ?? (100_000 + i * 50_000)),
+    }));
+
     // Seed the activity feed with each agent's current activity (oldest first), so it is not empty on open.
     this.pendingFeed = [...this.agents.values()]
       .filter((a) => a.activity)
@@ -599,6 +711,10 @@ export class FactorySimulator {
       rooms: [...this.rooms.values()].map((r) => ({ ...r })),
       agents: [...this.agents.values()].map((a) => structuredCloneAgent(a)),
       accounts: this.accountsInfo(now),
+      inbox: this.inbox.map((item) => ({
+        ...item,
+        options: item.options.map((o) => ({ ...o })),
+      })),
       meta: {
         demo: true,
         sources: [],
@@ -748,6 +864,77 @@ export class FactorySimulator {
       agentId: agent.id,
       roomId: agent.roomId,
       at: now,
+    });
+
+    const inboxItem = this.inbox.find((it) => it.from === agent.name);
+    if (inboxItem) {
+      this.inbox = this.inbox.filter((it) => it.id !== inboxItem.id);
+    }
+
+    this.rev++;
+    this.dirty = true;
+    return true;
+  }
+
+  answerInbox(id: string, choiceKey: string, note?: string, now = Date.now()): boolean {
+    const item = this.inbox.find((it) => it.id === id);
+    if (!item) return false;
+
+    const opt = item.options.find((o) => o.key === choiceKey) ?? item.options[0];
+    const rawLabel = opt?.label ?? choiceKey;
+    const cleanLabel = rawLabel.replace(/\s*\(Recommended\)/i, '').trim();
+
+    // 1. Remove item from list
+    this.inbox = this.inbox.filter((it) => it.id !== id);
+
+    // 2. Free waiting agent if linked
+    if (item.from) {
+      const agent = [...this.agents.values()].find((a) => a.name === item.from || a.id === `factory:agent:${item.from}`);
+      if (agent && agent.status === 'waiting') {
+        delete agent.permission;
+        agent.waitingFor = undefined;
+        agent.status = 'working';
+        agent.statusSince = now;
+        agent.activity = {
+          id: `act-${++this.seq}`,
+          kind: 'other',
+          icon: '✅',
+          text: `Answered in Office (${item.id})`,
+          detail: note,
+          at: now,
+        };
+        agent.recent = [...agent.recent, agent.activity].slice(-30);
+        agent.lastEventAt = now;
+
+        this.pendingNotices.push({
+          id: `notice-${++this.seq}`,
+          level: 'success',
+          text: `✅ ${agent.name} resumed work`,
+          agentId: agent.id,
+          roomId: agent.roomId,
+          at: now,
+        });
+      }
+    }
+
+    // 3. Add feed item
+    const room = [...this.rooms.values()].find((r) => r.name.includes(item.project) || item.project.includes(r.name)) ?? [...this.rooms.values()][0];
+    const feedText = `You answered ${item.id}: ${cleanLabel}`;
+    this.pendingFeed.push({
+      id: `feed-${++this.seq}`,
+      agentId: item.from ? `factory:agent:${item.from}` : 'user',
+      roomId: room?.id ?? '',
+      agentName: 'You',
+      roomName: room?.name ?? item.project,
+      account: '.claude',
+      activity: {
+        id: `act-${++this.seq}`,
+        kind: 'communicate',
+        icon: '📬',
+        text: feedText,
+        detail: note ? `Note: ${note}` : undefined,
+        at: now,
+      },
     });
 
     this.rev++;

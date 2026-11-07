@@ -1,12 +1,12 @@
-// Barra lateral: busca, filtro por conta e a lista de agentes, agrupada por status (padrão) ou por sala
-// (salas -> agentes -> subagentes).
-import type { AccountInfo, AgentInfo } from '../../../shared/types';
+import type { AccountInfo, AgentInfo, FactoryInboxItem } from '../../../shared/types';
+import { hash32 } from '../../../shared/hash';
 import { roomTheme } from '../art';
 import type { UiComponent, UiContext } from './context';
+import { createAvatar } from './avatar';
 import { moveAgent, orderAgents } from './agentorder';
 import { moveRoom, orderRooms } from './roomorder';
 import { h, iconButton, KeyedList, setAttr, setHidden, setStyleVar, setText, setTitle } from './dom';
-import { plural, shortPath } from './format';
+import { plural, relativeTime, shortPath } from './format';
 import { ICONS } from './icons';
 import { groupRooms, roleLabel, STATUS_LABEL, type AgentNode, type RoomGroup } from './model';
 import { officeIsEmpty } from './overlays';
@@ -81,8 +81,12 @@ export class Sidebar implements UiComponent {
   private emptyText: HTMLElement;
   private clearBtn: HTMLButtonElement;
   private lastSelKey = '';
+  private inboxBadge: HTMLElement;
+  private inboxContainer: HTMLElement;
+  private inboxKIndex = -1;
 
   constructor(private ctx: UiContext) {
+    this.ctx.openInboxTab = () => this.openInboxTab();
     this.input = h('input', {
       class: 'ui-search__input',
       type: 'search',
@@ -128,10 +132,21 @@ export class Sidebar implements UiComponent {
       },
     });
 
-    const viewOpt = (view: SideState['view'], text: string) =>
-      h('button', { class: 'ui-seg__opt', type: 'button', role: 'radio', text, on: { click: () => this.update((s) => ({ ...s, view })) } });
-    this.viewBtns = { status: viewOpt('status', i18n('Status')), rooms: viewOpt('rooms', i18n('Salas')) };
-    const views = h('div', { class: 'ui-seg', role: 'radiogroup', attrs: { 'aria-label': i18n('Agrupar por') } }, this.viewBtns.status, this.viewBtns.rooms);
+    const viewOpt = (view: SideState['view'], text: string, extra?: HTMLElement) =>
+      h('button', { class: 'ui-seg__opt', type: 'button', role: 'radio', attrs: { 'data-view': view }, on: { click: () => this.update((s) => ({ ...s, view })) } }, text, ...(extra ? [extra] : []));
+    this.inboxBadge = h('span', { class: 'ui-room__count ui-inbox-tab-badge', text: '0' });
+    this.viewBtns = {
+      status: viewOpt('status', i18n('Status')),
+      rooms: viewOpt('rooms', i18n('Salas')),
+      inbox: viewOpt('inbox', 'Inbox', this.inboxBadge),
+    };
+    const views = h(
+      'div',
+      { class: 'ui-seg', role: 'radiogroup', attrs: { 'aria-label': i18n('Agrupar por') } },
+      this.viewBtns.status,
+      this.viewBtns.rooms,
+      ...(this.ctx.store.factory ? [this.viewBtns.inbox] : []),
+    );
 
     this.scroller = h('div', { class: 'ui-side__scroll' });
     const byStatus = h('div', { class: 'ui-rooms', role: 'list', attrs: { 'aria-label': i18n('Agentes por status') } });
@@ -141,7 +156,8 @@ export class Sidebar implements UiComponent {
       update: (el, g) => this.updateGroup(el, g),
     });
     const list = h('div', { class: 'ui-rooms', role: 'list', attrs: { 'aria-label': i18n('Salas') } });
-    this.scroller.append(byStatus, list);
+    this.inboxContainer = h('div', { class: 'ui-rooms ui-inbox-container', role: 'list', attrs: { 'aria-label': 'Inbox' } });
+    this.scroller.append(byStatus, list, this.inboxContainer);
     this.rooms = new KeyedList<RoomGroup>(list, {
       key: (g) => g.room.id,
       create: (g) => this.createRoom(g),
@@ -203,41 +219,194 @@ export class Sidebar implements UiComponent {
     }
     this.state = state;
     const byStatus = state.view === 'status';
+    const byInbox = state.view === 'inbox';
+    const byRooms = state.view === 'rooms';
     for (const [view, b] of Object.entries(this.viewBtns)) setAttr(b, 'aria-checked', String(view === state.view));
+
+    if (this.ctx.store.factory) {
+      const openCount = (snap?.inbox ?? []).length;
+      setText(this.inboxBadge, String(openCount));
+      setHidden(this.inboxBadge, openCount === 0);
+    }
 
     // Ordem das salas escolhida pelo usuário (arrastando o cabeçalho da sala).
     const groups = orderRooms(groupRooms(snap, { query: this.query, hiddenAccounts: hidden }), (g) => g.room.id);
     const nodes = groups.flatMap((g) => g.nodes);
     this.shownRooms = groups.map((g) => g.room.id);
-    this.rooms.sync(byStatus ? [] : groups);
+    this.rooms.sync(byRooms ? groups : []);
     this.groups.sync(byStatus ? groupByStatus(nodes, state) : []);
-    setHidden(this.rooms.container, byStatus);
+    setHidden(this.rooms.container, !byRooms);
     setHidden(this.groups.container, !byStatus);
+    setHidden(this.inboxContainer, !byInbox);
 
-    const filtering = this.query.trim().length > 0 || hidden.size > 0;
-    const total = snap?.agents.length ?? 0;
-    // Escritório vazio sem filtro: o cartão central já explica; a lista não repete o aviso.
-    const showEmpty = (byStatus ? nodes : groups).length === 0 && (filtering || !officeIsEmpty(this.ctx));
-    setHidden(this.empty, !showEmpty);
-    if (showEmpty) {
-      setText(
-        this.emptyText,
-        filtering && total > 0
-          ? this.query.trim()
-            ? i18n`Nenhum agente encontrado para “${this.query.trim()}”.`
-            : i18n('Nenhum agente nas contas selecionadas.')
-          : i18n('Nenhuma sessão aberta no momento.'),
-      );
-      setHidden(this.clearBtn, !(filtering && total > 0));
+    if (byInbox) {
+      setHidden(this.empty, true);
+      this.renderInbox();
+    } else {
+      const filtering = this.query.trim().length > 0 || hidden.size > 0;
+      const total = snap?.agents.length ?? 0;
+      // Escritório vazio sem filtro: o cartão central já explica; a lista não repete o aviso.
+      const showEmpty = (byStatus ? nodes : groups).length === 0 && (filtering || !officeIsEmpty(this.ctx));
+      setHidden(this.empty, !showEmpty);
+      if (showEmpty) {
+        setText(
+          this.emptyText,
+          filtering && total > 0
+            ? this.query.trim()
+              ? i18n`Nenhum agente encontrado para “${this.query.trim()}”.`
+              : i18n('Nenhum agente nas contas selecionadas.')
+            : i18n('Nenhuma sessão aberta no momento.'),
+        );
+        setHidden(this.clearBtn, !(filtering && total > 0));
+      }
     }
 
     if (selChanged && sel) {
       const target =
         sel.type === 'agent'
           ? this.el.querySelector<HTMLElement>(`.ui-agent[data-id="${CSS.escape(sel.id)}"]`)
-          : this.el.querySelector<HTMLElement>(`.ui-room[data-key="${CSS.escape(sel.id)}"] .ui-room__head`);
+          : sel.type === 'room'
+            ? this.el.querySelector<HTMLElement>(`.ui-room[data-key="${CSS.escape(sel.id)}"] .ui-room__head`)
+            : this.el.querySelector<HTMLElement>(`.ui-inbox-card[data-id="${CSS.escape(sel.id)}"]`);
       target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
+  }
+
+  get currentView(): SideState['view'] {
+    return this.state.view;
+  }
+
+  openInboxTab(): void {
+    this.update((s) => ({ ...s, view: 'inbox' }));
+    if (!this.ctx.isPanelOpen('sidebar')) {
+      this.ctx.togglePanel('sidebar', true);
+    }
+  }
+
+  moveInbox(delta: number): void {
+    const cards = [...this.inboxContainer.querySelectorAll<HTMLButtonElement>('.ui-inbox-card')];
+    if (cards.length === 0) return;
+    this.inboxKIndex = Math.max(0, Math.min(cards.length - 1, (this.inboxKIndex < 0 ? 0 : this.inboxKIndex) + delta));
+    cards.forEach((c, i) => c.classList.toggle('is-kfocus', i === this.inboxKIndex));
+    cards[this.inboxKIndex]?.scrollIntoView({ block: 'nearest' });
+  }
+
+  openFocusedInbox(): void {
+    const cards = [...this.inboxContainer.querySelectorAll<HTMLButtonElement>('.ui-inbox-card')];
+    if (this.inboxKIndex >= 0 && this.inboxKIndex < cards.length) {
+      cards[this.inboxKIndex].click();
+    }
+  }
+
+  private renderInbox(): void {
+    const snap = this.ctx.store.snapshot;
+    const allItems = snap?.inbox ?? [];
+    const now = this.ctx.now();
+    const q = this.query.trim().toLowerCase();
+
+    if (allItems.length === 0) {
+      this.inboxContainer.replaceChildren(
+        h(
+          'div',
+          { class: 'ui-inbox-empty' },
+          h('p', { class: 'ui-inbox-zero', text: 'Inbox zero. New questions from agents land here.' }),
+        ),
+      );
+      return;
+    }
+
+    const filtered = allItems.filter((it) => {
+      if (!q) return true;
+      return (
+        it.title.toLowerCase().includes(q) ||
+        it.project.toLowerCase().includes(q) ||
+        (it.from && it.from.toLowerCase().includes(q)) ||
+        it.context.toLowerCase().includes(q)
+      );
+    });
+
+    if (filtered.length === 0) {
+      this.inboxContainer.replaceChildren(
+        h(
+          'div',
+          { class: 'ui-inbox-empty' },
+          h('p', { text: i18n`Nenhum item encontrado para “${this.query.trim()}”.` }),
+        ),
+      );
+      return;
+    }
+
+    const groups: { key: 'urgent' | 'action' | 'applied'; label: string }[] = [
+      { key: 'urgent', label: 'Urgent' },
+      { key: 'action', label: 'Action' },
+      { key: 'applied', label: 'Applied' },
+    ];
+
+    const sections: HTMLElement[] = [];
+    let cardIdx = 0;
+
+    for (const g of groups) {
+      const groupItems = filtered.filter((it) => it.kind === g.key).sort((a, b) => b.at - a.at);
+      if (groupItems.length === 0) continue;
+
+      const count = h('span', { class: 'ui-room__count', text: String(groupItems.length) });
+      const head = h(
+        'div',
+        { class: 'ui-room__head' },
+        h('span', { class: 'ui-room__line' }, h('span', { class: 'ui-room__name', text: g.label }), count),
+      );
+
+      const cards = groupItems.map((item) => {
+        const thisIdx = cardIdx++;
+        const dot = h('span', { class: `ui-inbox-dot is-${item.kind}` });
+        const title = h('span', { class: 'ui-inbox-card__title', text: item.title });
+        const proj = h('span', { class: 'ui-inbox-card__proj', text: item.project });
+        const age = h('span', { class: 'ui-inbox-card__age', text: relativeTime(item.at, now) });
+        const sub = h('div', { class: 'ui-inbox-card__sub' }, proj, h('span', { text: '·' }), age);
+        const content = h('div', { class: 'ui-inbox-card__content' }, title, sub);
+
+        let avatar: HTMLElement | null = null;
+        if (item.from) {
+          const agent = this.ctx.agent(`factory:agent:${item.from}`);
+          avatar = h(
+            'span',
+            { class: 'ui-inbox-card__agent', title: `Agent ${item.from}` },
+            createAvatar(agent ?? { seed: hash32(item.from), look: 'm', kind: 'main' }, 'xs'),
+            h('span', { class: 'ui-inbox-card__handle', text: item.from }),
+          );
+        }
+
+        const isKFocus = this.inboxKIndex === thisIdx;
+        const btn = h(
+          'button',
+          {
+            class: `ui-inbox-card is-${item.kind} ${isKFocus ? 'is-kfocus' : ''}`,
+            type: 'button',
+            attrs: { 'data-id': item.id, 'data-kind': item.kind },
+            on: {
+              click: () => {
+                this.inboxKIndex = thisIdx;
+                this.ctx.select({ type: 'inbox', id: item.id });
+              },
+            },
+          },
+          dot,
+          content,
+          avatar,
+        );
+        return btn;
+      });
+
+      const section = h(
+        'section',
+        { class: `ui-room ui-sgroup is-inbox-${g.key}`, role: 'listitem' },
+        h('div', { class: 'ui-sgroup__bar' }, head),
+        h('div', { class: 'ui-inbox-list' }, ...cards),
+      );
+      sections.push(section);
+    }
+
+    this.inboxContainer.replaceChildren(...sections);
   }
 
   /** Muda o estado guardado da lista por status (visão, grupos recolhidos, fixados, vistos) e redesenha. */

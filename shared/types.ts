@@ -327,6 +327,24 @@ export interface AccountInfo {
   usageStatus: 'ok' | 'stale' | 'disabled';
 }
 
+export type FactoryInboxKind = 'urgent' | 'action' | 'applied';
+
+export interface FactoryInboxOption {
+  key: string;
+  label: string;
+}
+
+export interface FactoryInboxItem {
+  id: string;
+  kind: FactoryInboxKind;
+  title: string;
+  context: string;
+  options: FactoryInboxOption[];
+  project: string;
+  from: string | null;
+  at: number;
+}
+
 export interface OfficeSnapshot {
   /** Incrementa a cada mudança. */
   rev: number;
@@ -335,6 +353,8 @@ export interface OfficeSnapshot {
   agents: AgentInfo[];
   /** Contas do Claude detectadas (com uso de 5h/semanal quando disponível). */
   accounts: AccountInfo[];
+  /** Itens da caixa de entrada da fábrica (modo fábrica). */
+  inbox?: FactoryInboxItem[];
   meta: {
     demo: boolean;
     sources: SourceInfo[];

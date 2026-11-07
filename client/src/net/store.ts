@@ -5,7 +5,7 @@
 // Também cuida da reconexão: quando o navegador desiste do stream (EventSource fechado após erro HTTP,
 // ex.: servidor reiniciando atrás de um proxy), tenta de novo com espera crescente.
 import type { AppearanceParts } from '../../../shared/appearance';
-import type { Activity, AgentDetail, AgentInfo, FeedItem, Notice, OfficeSnapshot, OutboxMessage, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
+import type { Activity, AgentDetail, AgentInfo, FactoryInboxItem, FeedItem, Notice, OfficeSnapshot, OutboxMessage, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
 import { DemoSimulator } from '../../../shared/demo/simulator';
 import { FactorySimulator } from '../../../shared/demo/factory';
 import { i18n } from '../../../shared/i18n';
@@ -273,6 +273,22 @@ export class OfficeStore {
       // Resposta sem JSON (ex.: guard): usa a mensagem padrão.
     }
     return i18n`Não foi possível responder (erro ${res.status}).`;
+  }
+
+  get inbox(): FactoryInboxItem[] {
+    return this.snapshot?.inbox ?? [];
+  }
+
+  /**
+   * Responde um item da caixa de entrada da fábrica (modo fábrica).
+   */
+  async answerInbox(id: string, choiceKey: string, note?: string): Promise<boolean> {
+    if (this.mockSim && 'answerInbox' in this.mockSim) {
+      const ok = (this.mockSim as FactorySimulator).answerInbox(id, choiceKey, note);
+      if (ok) this.applySnapshot(this.mockSim.snapshot());
+      return ok;
+    }
+    return false;
   }
 
   /**

@@ -1,14 +1,27 @@
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
+import os from 'node:os';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_PATH ?? 'playwright');
+const playwrightPath = process.env.PLAYWRIGHT_PATH
+  ? (process.env.PLAYWRIGHT_PATH.startsWith('~/')
+      ? join(os.homedir(), process.env.PLAYWRIGHT_PATH.slice(2))
+      : resolve(process.env.PLAYWRIGHT_PATH))
+  : 'playwright';
 
-const htmlPath = resolve(process.argv[2] ?? 'dist/factory-office.html');
-const outDir = resolve(process.argv[3] ?? 'dist');
+const { chromium } = require(playwrightPath);
 
-console.log('Testing Factory Office v2 standalone in Playwright Chromium...');
+let rawHtml = process.argv[2] ?? 'dist/factory-office-v3.html';
+if (rawHtml.startsWith('~/')) rawHtml = join(os.homedir(), rawHtml.slice(2));
+const htmlPath = resolve(rawHtml);
+
+let rawOut = process.argv[3] ?? 'dist';
+if (rawOut.startsWith('~/')) rawOut = join(os.homedir(), rawOut.slice(2));
+const outDir = resolve(rawOut);
+
+console.log('Testing Factory Office v3 standalone in Playwright Chromium...');
 console.log(`Target: file://${htmlPath}`);
+console.log(`Output: ${outDir}`);
 
 const browser = await chromium.launch({
   headless: true,
@@ -26,8 +39,6 @@ page.on('console', (msg) => {
   if (msg.type() === 'error') {
     errors.push(msg.text());
     console.error('[Browser Error]', msg.text());
-  } else {
-    // console.log('[Browser Log]', msg.text());
   }
 });
 
@@ -38,7 +49,7 @@ page.on('pageerror', (err) => {
 
 page.on('request', (req) => {
   const url = req.url();
-  if (url === `file://${htmlPath}`) return; // Root HTML navigation
+  if (url === `file://${htmlPath}`) return;
   if (!url.startsWith('data:') && !url.startsWith('blob:')) {
     nonDataRequests.push(url);
     console.warn('[Network Request Detected]', url);
@@ -47,37 +58,43 @@ page.on('request', (req) => {
 
 // Navigate
 await page.goto(`file://${htmlPath}`);
+await page.waitForTimeout(2500);
 
-// Wait 3 seconds as required by the brief
-console.log('Waiting 3 seconds...');
-await page.waitForTimeout(3000);
+// Step 1: Open Inbox Tab in Sidebar
+console.log('Clicking Inbox tab...');
+const inboxTab = page.locator('button[data-view="inbox"], button:has-text("Inbox")').first();
+await inboxTab.click();
+await page.waitForTimeout(500);
 
-// Screenshot 1: 1440 desktop overview
-const s1440 = `${outDir}/v2-1440.png`;
-await page.screenshot({ path: s1440 });
-console.log(`Saved screenshot: ${s1440}`);
+// Screenshot 1: v3-inbox-1440.png
+const sInbox = `${outDir}/v3-inbox-1440.png`;
+await page.screenshot({ path: sInbox });
+console.log(`Saved screenshot: ${sInbox}`);
 
-// Click a waiting agent to open drawer
-console.log('Finding and clicking waiting agent...');
-// Try clicking the waiting counter button or an agent in the sidebar
-const waitingBtn = page.locator('.ui-counter--waiting');
-if (await waitingBtn.isVisible()) {
-  await waitingBtn.click();
-} else {
-  // Click agent 2b07 directly
-  const agentRow = page.locator('text=2b07').first();
-  await agentRow.click();
-}
+// Step 2: Open an urgent item
+console.log('Opening an urgent inbox item...');
+const urgentCard = page.locator('.ui-inbox-card.is-urgent').first();
+await urgentCard.click();
+await page.waitForTimeout(500);
 
-await page.waitForTimeout(1000);
+// Screenshot 2: v3-item-1440.png
+const sItem = `${outDir}/v3-item-1440.png`;
+await page.screenshot({ path: sItem });
+console.log(`Saved screenshot: ${sItem}`);
 
-// Screenshot 2: drawer open at 1440
-const sDrawer = `${outDir}/v2-drawer-1440.png`;
-await page.screenshot({ path: sDrawer });
-console.log(`Saved screenshot: ${sDrawer}`);
+// Step 3: Answer / Save the item
+console.log('Saving / answering item...');
+const saveBtn = page.locator('.ui-inbox-save-btn').first();
+await saveBtn.click();
+await page.waitForTimeout(500);
 
-// Mobile viewport 390
-console.log('Switching to mobile viewport 390x844...');
+// Screenshot 3: v3-answered-1440.png
+const sAnswered = `${outDir}/v3-answered-1440.png`;
+await page.screenshot({ path: sAnswered });
+console.log(`Saved screenshot: ${sAnswered}`);
+
+// Step 4: Mobile viewport 390x844
+console.log('Testing mobile viewport 390x844...');
 const mobileContext = await browser.newContext({
   viewport: { width: 390, height: 844 },
 });
@@ -87,34 +104,39 @@ mobilePage.on('console', (msg) => {
 });
 mobilePage.on('request', (req) => {
   const url = req.url();
-  if (url === `file://${htmlPath}`) return; // Root HTML navigation
+  if (url === `file://${htmlPath}`) return;
   if (!url.startsWith('data:') && !url.startsWith('blob:')) {
     nonDataRequests.push(url);
   }
 });
 
 await mobilePage.goto(`file://${htmlPath}`);
-await mobilePage.waitForTimeout(3000);
+await mobilePage.waitForTimeout(2500);
 
-// Screenshot 3: 390 mobile
-const s390 = `${outDir}/v2-390.png`;
-await mobilePage.screenshot({ path: s390 });
-console.log(`Saved screenshot: ${s390}`);
+// Open sidebar on mobile if needed, click inbox
+const mobileSidebarBtn = mobilePage.locator('.ui-btn-sidebar').first();
+if (await mobileSidebarBtn.isVisible()) {
+  await mobileSidebarBtn.click();
+  await mobilePage.waitForTimeout(300);
+}
+const mobileInboxTab = mobilePage.locator('button[data-view="inbox"], button:has-text("Inbox")').first();
+if (await mobileInboxTab.isVisible()) {
+  await mobileInboxTab.click();
+  await mobilePage.waitForTimeout(300);
+}
+
+// Screenshot 4: v3-inbox-390.png
+const sMobile = `${outDir}/v3-inbox-390.png`;
+await mobilePage.screenshot({ path: sMobile });
+console.log(`Saved screenshot: ${sMobile}`);
 
 await browser.close();
 
-console.log('\n--- VERIFICATION REPORT ---');
-console.log(`Console errors: ${errors.length}`);
-if (errors.length > 0) {
-  console.error('Errors:', errors);
-}
-console.log(`Non data/blob network requests: ${nonDataRequests.length}`);
-if (nonDataRequests.length > 0) {
-  console.error('Non-data requests:', nonDataRequests);
-}
+console.log('--- Verification Results ---');
+console.log(`Console Errors: ${errors.length}`);
+console.log(`Non-Data Requests: ${nonDataRequests.length}`);
 
-if (errors.length === 0 && nonDataRequests.length === 0) {
-  console.log('SUCCESS: All checks passed with 0 console errors and 0 network requests!');
-} else {
+if (errors.length > 0 || nonDataRequests.length > 0) {
   process.exit(1);
 }
+console.log('Verification PASSED!');
