@@ -20,7 +20,24 @@ export function parseLang(value: string | undefined | null): Lang {
 }
 
 function detectLang(): Lang {
-  const g = globalThis as { document?: { documentElement?: { lang?: string } }; process?: { env?: Record<string, string | undefined> } };
+  const g = globalThis as {
+    document?: { documentElement?: { lang?: string; dataset?: { mode?: string } } };
+    process?: { env?: Record<string, string | undefined> };
+    location?: { search?: string };
+    __FACTORY_DEFAULT__?: boolean;
+  };
+  try {
+    const search = g.location?.search;
+    if (search) {
+      const params = new URLSearchParams(search);
+      const q = params.get('lang');
+      if (q) return parseLang(q);
+      if (params.has('factory')) return 'en';
+    }
+  } catch {}
+  if (g.__FACTORY_DEFAULT__ || g.document?.documentElement?.dataset?.mode === 'factory') {
+    return 'en';
+  }
   return parseLang(g.document?.documentElement?.lang || g.process?.env?.HABBLAUD_LANG);
 }
 

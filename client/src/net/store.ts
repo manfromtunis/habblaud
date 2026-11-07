@@ -7,6 +7,7 @@
 import type { AppearanceParts } from '../../../shared/appearance';
 import type { Activity, AgentDetail, AgentInfo, FeedItem, Notice, OfficeSnapshot, OutboxMessage, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
 import { DemoSimulator } from '../../../shared/demo/simulator';
+import { FactorySimulator } from '../../../shared/demo/factory';
 import { i18n } from '../../../shared/i18n';
 
 export type ConnectionState = 'connecting' | 'open' | 'closed' | 'mock';
@@ -43,6 +44,7 @@ export interface EventSourceLike {
 
 export interface StoreOptions {
   mock?: boolean;
+  factory?: boolean;
   /** Parâmetros do modo mock (padrão: a query string da página). */
   search?: string;
   /** Fábrica do stream (padrão: `new EventSource(url)`). */
@@ -89,6 +91,7 @@ export class OfficeStore {
   feed: FeedItem[] = [];
   connection: ConnectionState = 'connecting';
   readonly mock: boolean;
+  readonly factory: boolean;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private listeners = new Map<keyof StoreEvents, Set<(value: any) => void>>();
@@ -109,8 +112,10 @@ export class OfficeStore {
   private live: { snap: OfficeSnapshot; at: number } | null = null;
 
   constructor(opts: StoreOptions = {}) {
-    this.mock = !!opts.mock;
-    this.search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
+    const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
+    this.factory = !!opts.factory || new URLSearchParams(search).has('factory');
+    this.mock = !!opts.mock || this.factory;
+    this.search = search;
     this.openStream = opts.eventSource ?? ((url) => new EventSource(url));
     // Rede de volta (Wi-Fi, VPN): não espera o próximo intervalo para religar.
     if (typeof addEventListener === 'function' && !this.mock) {
@@ -496,13 +501,16 @@ export class OfficeStore {
     this.retryAt = null;
   }
 
-  /** Simulador do modo ?mock=1 (também responde os pedidos de permissão fictícios). */
-  private mockSim: DemoSimulator | null = null;
+  /** Simulador do modo ?mock=1 / ?factory=1 (também responde os pedidos de permissão fictícios). */
+  private mockSim: DemoSimulator | FactorySimulator | null = null;
 
   private startMock(): void {
     if (this.mockTimer) return;
     this.setConnection('mock');
-    const sim = new DemoSimulator(mockOptionsFrom(this.search));
+    const isFactory = this.factory || new URLSearchParams(this.search).has('factory');
+    const sim = isFactory
+      ? new FactorySimulator(mockOptionsFrom(this.search))
+      : new DemoSimulator(mockOptionsFrom(this.search));
     this.mockSim = sim;
     this.applySnapshot(sim.snapshot());
     this.mockTimer = setInterval(() => {

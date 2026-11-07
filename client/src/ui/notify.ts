@@ -40,7 +40,8 @@ export class Notifier implements UiComponent {
   render(): void {
     // Ao vivo, mesmo durante o timelapse: o título da aba avisa quem precisa de você agora.
     const waiting = computeCounters(this.ctx.store.liveSnapshot).waiting;
-    const title = waiting > 0 ? `(${waiting}) ${BASE_TITLE}` : BASE_TITLE;
+    const baseTitle = this.ctx.store.factory ? 'Factory Office' : BASE_TITLE;
+    const title = waiting > 0 ? `(${waiting}) ${baseTitle}` : baseTitle;
     if (title !== this.lastTitle) {
       this.lastTitle = title;
       document.title = title;

@@ -8,3 +8,6 @@ scripts/assets/.cache/
 
 # Configurações locais do Claude Code e caches de geração
 .claude/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

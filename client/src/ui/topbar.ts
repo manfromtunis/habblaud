@@ -117,20 +117,27 @@ export class TopBar implements UiComponent {
     );
     this.panelGroup = panelGroup;
 
+    const leftItems: HTMLElement[] = [this.sidebarBtn];
+    if (ctx.store.factory) {
+      const backLink = h('a', {
+        class: 'ui-btn ui-back-btn',
+        attrs: { href: '../', title: 'Back to dashboard' },
+      }, 'Back to dashboard');
+      leftItems.push(backLink);
+    }
+    leftItems.push(
+      h(
+        'div',
+        { class: 'ui-brand' },
+        mark,
+        h('div', { class: 'ui-brand__text' }, wordmark(), h('div', { class: 'ui-topbar__status' }, this.pill, this.version.el, this.demoBadge)),
+      ),
+    );
+
     this.el = h(
       'header',
       { class: 'ui-topbar', role: 'banner' },
-      h(
-        'div',
-        { class: 'ui-topbar__left' },
-        this.sidebarBtn,
-        h(
-          'div',
-          { class: 'ui-brand' },
-          mark,
-          h('div', { class: 'ui-brand__text' }, wordmark(), h('div', { class: 'ui-topbar__status' }, this.pill, this.version.el, this.demoBadge)),
-        ),
-      ),
+      h('div', { class: 'ui-topbar__left' }, ...leftItems),
       counterWrap,
       this.usage.el,
       h('div', { class: 'ui-topbar__right' }, viewGroup, panelGroup),
