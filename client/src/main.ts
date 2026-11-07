@@ -9,17 +9,12 @@ migrateLegacyKeys(safeLocalStorage());
 
 const params = new URLSearchParams(location.search);
 const isFile = location.protocol === 'file:';
-const isMock = params.has('mock') || params.has('factory') || isFile;
-const isFactory =
-  params.has('factory') ||
-  (!params.has('mock') && (
-    typeof (window as unknown as { __FACTORY_DEFAULT__?: boolean }).__FACTORY_DEFAULT__ !== 'undefined' ||
-    document.documentElement.dataset.mode === 'factory' ||
-    isFile ||
-    location.pathname.includes('/office') ||
-    location.pathname.includes('proto-office') ||
-    location.pathname.includes('factory-office')
-  ));
+const hasFactoryParam = params.has('factory');
+const isFactoryBuild =
+  typeof (window as unknown as { __FACTORY_DEFAULT__?: boolean }).__FACTORY_DEFAULT__ !== 'undefined' ||
+  document.documentElement.dataset.mode === 'factory';
+const isFactory = hasFactoryParam || isFactoryBuild;
+const isMock = params.has('mock') || (isFactory ? (hasFactoryParam || isFile) : isFile);
 
 const store = new OfficeStore({
   mock: isMock,

@@ -1,4 +1,5 @@
 // Utilitários de DOM da interface: criação de elementos, atualizações mínimas e listas com chave.
+import { lookupAssetUrl } from '../world/assets';
 
 type Child = Node | string | null | undefined | false;
 type Props = {
@@ -17,10 +18,7 @@ type Props = {
 
 function resolveAttrValue(name: string, value: string): string {
   if (name === 'src' && (value.startsWith('/assets/') || value.startsWith('assets/'))) {
-    const g = globalThis as { __ASSET_URLS__?: Record<string, string> };
-    const clean = value.replace(/^\/+/, '');
-    const cleanNoAssets = clean.replace(/^assets\//, '');
-    return g.__ASSET_URLS__?.[clean] ?? g.__ASSET_URLS__?.[cleanNoAssets] ?? g.__ASSET_URLS__?.[value] ?? value;
+    return lookupAssetUrl(value);
   }
   return value;
 }

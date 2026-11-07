@@ -46,6 +46,17 @@ async function run() {
 
   const page = await context.newPage();
   const consoleErrors = [];
+  const apiRequests = [];
+
+  page.on('request', (req) => {
+    const url = req.url();
+    if (url.includes('/api/')) {
+      apiRequests.push(url);
+      if (url.includes('/office/api/')) {
+        throw new Error(`Forbidden /office/api/ path requested: ${url}`);
+      }
+    }
+  });
 
   page.on('response', (res) => {
     if (res.status() >= 400) {
@@ -88,6 +99,15 @@ async function run() {
       throw new Error(`Expected buildingName 'office-live-1', got '${buildingNameInSnapshot}'`);
     }
 
+    // Verify one room per project (3 rooms for 3 fake projects)
+    const roomCount = await page.evaluate(() => {
+      return window.habblaud.store.snapshot?.rooms?.length || 0;
+    });
+    console.log(`Room count in snapshot: ${roomCount}`);
+    if (roomCount !== 3) {
+      throw new Error(`Expected 3 rooms (1 per project), got ${roomCount}`);
+    }
+
     // Capture screenshot 1: live-1440.png
     console.log(`Taking screenshot: ${SCREENSHOT_1}`);
     await page.screenshot({ path: SCREENSHOT_1, fullPage: false });
@@ -100,6 +120,16 @@ async function run() {
 
     // Wait for drawer to appear
     await page.waitForSelector('.ui-drawer.is-open', { timeout: 5000 });
+
+    // Verify drawer text contains no NaN (start/duration cleanly formatted)
+    const drawerText = await page.evaluate(() => {
+      const drawer = document.querySelector('.ui-drawer');
+      return drawer ? drawer.textContent || '' : '';
+    });
+    if (drawerText.includes('NaN')) {
+      throw new Error(`Found NaN in drawer text: ${drawerText}`);
+    }
+    console.log('Verified no NaN in drawer text.');
 
     // Verify button text says "Open thread" (or "Abrir conversa")
     const termBtn = await page.waitForSelector('.ui-term-cta', { timeout: 5000 });
@@ -131,16 +161,19 @@ async function run() {
     console.log('Clicking send button...');
     await sendBtn.click();
 
-    // Wait for message to be recorded by fake server
+    // Wait for message bubble to render in terminal
     await page.waitForFunction(
-      (expectedText) => {
-        return window.habblaud?.store?.lastSentMessageText === expectedText || true;
+      (text) => {
+        const rows = Array.from(document.querySelectorAll('.ui-term__row'));
+        return rows.some((r) => r.textContent?.includes(text));
       },
       testMessageText,
       { timeout: 5000 }
     );
-    await page.waitForTimeout(500);
+    console.log('Verified sent message bubble renders in terminal!');
 
+    // Wait for message to be recorded by fake server
+    await page.waitForTimeout(500);
     console.log('Checking fake server recorded messages:');
     console.log(JSON.stringify(fakeServer.recordedMessages, null, 2));
     const msgFound = fakeServer.recordedMessages.find(
@@ -184,6 +217,33 @@ async function run() {
       throw new Error('Fake server did not record inbox answer for a538');
     }
     console.log('Inbox answer was successfully recorded by fake server!');
+
+    // Switch to Inbox tab in sidebar to view inbox list
+    console.log('Switching to Inbox tab in sidebar...');
+    const inboxTab = await page.waitForSelector('[data-view="inbox"]', { timeout: 5000 });
+    await inboxTab.click();
+
+    // Verify item updates to "Answered" state after poll
+    await page.waitForSelector('.ui-inbox-card.is-answered[data-id="a538"]', { timeout: 5000 });
+    const answeredText = await page.evaluate(() => {
+      const card = document.querySelector('.ui-inbox-card[data-id="a538"]');
+      return card ? card.textContent || '' : '';
+    });
+    console.log(`Answered card text: "${answeredText.trim()}"`);
+    if (!answeredText.includes('waiting for the agent')) {
+      throw new Error(`Expected answered card to contain 'waiting for the agent', got '${answeredText}'`);
+    }
+
+    // Also verify status in the drawer
+    const drawerStatus = await page.evaluate(() => {
+      const st = document.querySelector('.ui-inbox-view .ui-perm__status');
+      return st ? st.textContent || '' : '';
+    });
+    console.log(`Drawer status text: "${drawerStatus.trim()}"`);
+    if (!drawerStatus.includes('waiting for the agent')) {
+      throw new Error(`Expected drawer status to contain 'waiting for the agent', got '${drawerStatus}'`);
+    }
+    console.log('Verified item a538 is in Answered group with "waiting for the agent" status in both sidebar and drawer!');
 
     // 6. Assert 0 console errors on HTTP
     console.log(`Console errors count on /office: ${consoleErrors.length}`);

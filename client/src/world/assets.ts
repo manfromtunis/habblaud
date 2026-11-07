@@ -39,7 +39,7 @@ interface Manifest {
   brand?: { signage?: ManifestFile; mark?: ManifestFile };
 }
 
-function resolveAssetSrc(file: string): string {
+export function lookupAssetUrl(file: string): string {
   if (file.startsWith('data:') || file.startsWith('blob:')) return file;
   const g = globalThis as { __ASSET_URLS__?: Record<string, string> };
   const clean = file.replace(/^\/+/, '');
@@ -53,7 +53,7 @@ function loadImage(file: string): Promise<HTMLImageElement | null> {
     img.decoding = 'async';
     img.onload = () => resolve(img.naturalWidth > 0 ? img : null);
     img.onerror = () => resolve(null);
-    img.src = resolveAssetSrc(file);
+    img.src = lookupAssetUrl(file);
   });
 }
 

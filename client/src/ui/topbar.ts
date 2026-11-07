@@ -119,9 +119,10 @@ export class TopBar implements UiComponent {
 
     const leftItems: HTMLElement[] = [this.sidebarBtn];
     if (ctx.store.factory) {
+      const qs = typeof location !== 'undefined' ? location.search || '' : '';
       const backLink = h('a', {
         class: 'ui-btn ui-back-btn',
-        attrs: { href: '../', title: 'Back to dashboard' },
+        attrs: { href: '../' + qs, title: 'Back to dashboard' },
       }, 'Back to dashboard');
       leftItems.push(backLink);
     }
@@ -175,7 +176,8 @@ export class TopBar implements UiComponent {
     const c = computeCounters(snap, now);
     if (store.factory) {
       const inbox = snap?.inbox ?? [];
-      c.waiting = inbox.filter((i) => i.kind === 'urgent' || i.kind === 'action').length;
+      const answers = snap?.answers ?? {};
+      c.waiting = inbox.filter((i) => !answers[i.id] && (i.kind === 'urgent' || i.kind === 'action')).length;
     }
     for (const def of COUNTERS) {
       const refs = this.counters.get(def.key)!;

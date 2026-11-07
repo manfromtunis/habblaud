@@ -257,6 +257,7 @@ class AgentView {
   private agentInboxOpts: HTMLElement;
   private agentInboxNote: HTMLTextAreaElement;
   private agentInboxSave: HTMLButtonElement;
+  private agentInboxStatus: HTMLElement;
   private agentInboxOpenItem: FactoryInboxItem | null = null;
   private agentInboxChoice = '';
 
@@ -408,6 +409,7 @@ class AgentView {
       },
       'Save',
     );
+    this.agentInboxStatus = h('p', { class: 'ui-perm__status', role: 'status' });
     this.agentInboxCard = h(
       'section',
       { class: 'ui-sec ui-agent-inbox-sec', hidden: true },
@@ -417,6 +419,7 @@ class AgentView {
       this.agentInboxOpts,
       this.agentInboxNote,
       h('div', { class: 'ui-perm__actions' }, this.agentInboxSave),
+      this.agentInboxStatus,
     );
 
     this.el = h(
@@ -544,15 +547,17 @@ class AgentView {
 
     // Alerta & Inbox da fábrica.
     const waiting = a.status === 'waiting' && !!live;
+    const answers = this.ctx.store.snapshot?.answers ?? {};
     const inboxItem =
       waiting && this.ctx.store.factory
-        ? this.ctx.store.snapshot?.inbox?.find((it) => it.from === a.name || it.from === a.id.replace('factory:agent:', ''))
+        ? this.ctx.store.snapshot?.inbox?.find((it) => (it.from === a.name || it.from === a.id.replace('factory:agent:', '')) && !answers[it.id])
         : undefined;
 
     if (inboxItem) {
       this.agentInboxOpenItem = inboxItem;
+      const hasReco = !!inboxItem.reco && inboxItem.options.some((o) => o.key === inboxItem.reco);
       if (!this.agentInboxChoice || !inboxItem.options.some((o) => o.key === this.agentInboxChoice)) {
-        this.agentInboxChoice = inboxItem.options[0]?.key ?? '';
+        this.agentInboxChoice = hasReco ? inboxItem.reco! : '';
       }
       setHidden(this.agentInboxCard, false);
       setHidden(this.perm.el, true);
@@ -564,8 +569,11 @@ class AgentView {
       this.agentInboxOpenItem = null;
       setHidden(this.agentInboxCard, true);
       if (this.ctx.store.factory) {
-        setHidden(this.perm.el, true);
-        setHidden(this.alert, !waiting);
+        setHidden(this.perm.el, !a.permission);
+        if (a.permission) {
+          this.perm.render(live);
+        }
+        setHidden(this.alert, !waiting || !!a.permission);
       } else {
         this.perm.render(live);
         setHidden(this.alert, !waiting || this.perm.visible);
@@ -723,26 +731,36 @@ class AgentView {
   private renderStats(a: AgentInfo, now: number): void {
     const s = a.stats;
     const st = this.stats;
-    st.set('tools', formatInt(s.toolCalls));
-    st.set('tokensIn', formatTokens(s.tokensIn));
-    st.set('tokensOut', formatTokens(s.tokensOut));
-    st.set('cost', s.costUSD !== undefined ? formatUSD(s.costUSD) : null);
+    const isLiveFactory = this.ctx.store.factory && !this.ctx.store.mock;
+    if (isLiveFactory) {
+      st.set('tools', s.toolCalls ? formatInt(s.toolCalls) : null);
+      st.set('tokensIn', s.tokensIn ? formatTokens(s.tokensIn) : null);
+      st.set('tokensOut', s.tokensOut ? formatTokens(s.tokensOut) : null);
+      st.set('cost', null);
+      st.show('lines', false);
+      st.set('subs', null);
+    } else {
+      st.set('tools', formatInt(s.toolCalls));
+      st.set('tokensIn', formatTokens(s.tokensIn));
+      st.set('tokensOut', formatTokens(s.tokensOut));
+      st.set('cost', s.costUSD !== undefined ? formatUSD(s.costUSD) : null);
+      const hasLines = s.linesAdded !== undefined || s.linesRemoved !== undefined;
+      st.show('lines', hasLines);
+      setText(this.linesPlus, `+${formatInt(s.linesAdded ?? 0)}`);
+      setText(this.linesMinus, `−${formatInt(s.linesRemoved ?? 0)}`);
+      st.set('subs', a.kind === 'main' ? formatInt(s.subagents) : null);
+    }
     const codex = providerOf(a) === 'codex';
-    const hasLines = s.linesAdded !== undefined || s.linesRemoved !== undefined;
-    st.show('lines', hasLines);
-    setText(this.linesPlus, `+${formatInt(s.linesAdded ?? 0)}`);
-    setText(this.linesMinus, `−${formatInt(s.linesRemoved ?? 0)}`);
-    st.set('subs', a.kind === 'main' ? formatInt(s.subagents) : null);
     st.set('model', prettyModel(a.model));
     st.set('branch', a.gitBranch ?? null);
     // Codex: a política de aprovação (quando o servidor a manda) no lugar do modo de permissão do Claude Code.
     st.label('perm', codex ? i18n('Aprovações') : i18n('Permissões'));
-    st.set('perm', a.kind !== 'main' ? null : codex ? (a.permissionMode ? codexApprovalLabel(a.permissionMode) : null) : permissionLabel(a.permissionMode));
+    st.set('perm', a.kind !== 'main' || isLiveFactory ? null : codex ? (a.permissionMode ? codexApprovalLabel(a.permissionMode) : null) : permissionLabel(a.permissionMode));
 
     setText(this.sessionValue, a.sessionId);
     setTitle(this.sessionValue, a.sessionId);
-    st.set('start', formatDateTime(a.startedAt));
-    st.set('duration', formatDuration(now - a.startedAt));
+    st.set('start', a.startedAt ? formatDateTime(a.startedAt) : null);
+    st.set('duration', a.startedAt ? formatDuration(now - a.startedAt) : null);
     st.set('bg', a.background ? i18n('Em segundo plano') : null);
   }
 
@@ -752,18 +770,35 @@ class AgentView {
     this.renderAgentInboxOptions();
   }
 
-  saveInboxItem(): void {
+  async saveInboxItem(): Promise<void> {
     if (!this.agentInboxOpenItem) return;
-    const key = this.agentInboxChoice || this.agentInboxOpenItem.options[0]?.key || 'seen';
+    const key = this.agentInboxChoice;
+    if (!key) return; // Fix 8: Ctrl+Enter does nothing until a choice is picked
     const note = this.agentInboxNote.value.trim() || undefined;
-    this.ctx.store.answerInbox(this.agentInboxOpenItem.id, key, note);
+    this.agentInboxSave.disabled = true;
+    setText(this.agentInboxStatus, '');
+    try {
+      const res = await this.ctx.store.answerInbox(this.agentInboxOpenItem.id, key, note);
+      if (res && typeof res === 'object' && !res.ok) {
+        setText(this.agentInboxStatus, res.error || i18n('Falha ao responder'));
+        return;
+      }
+      if (res === false) {
+        setText(this.agentInboxStatus, i18n('Falha ao responder'));
+        return;
+      }
+      setText(this.agentInboxStatus, '');
+      this.ctx.invalidate();
+    } finally {
+      this.agentInboxSave.disabled = false;
+    }
   }
 
   private renderAgentInboxOptions(): void {
     if (!this.agentInboxOpenItem) return;
     this.agentInboxOpts.replaceChildren(
       ...this.agentInboxOpenItem.options.map((opt, idx) => {
-        const isRec = idx === 0;
+        const isRec = !!this.agentInboxOpenItem!.reco && opt.key === this.agentInboxOpenItem!.reco;
         const isSelected = opt.key === this.agentInboxChoice;
         const cleanLabel = opt.label.replace(/\s*\(Recommended\)/i, '').trim();
         return h(
@@ -980,7 +1015,6 @@ class InboxItemView {
   private optsContainer: HTMLElement;
   private noteField: HTMLTextAreaElement;
   private saveBtn: HTMLButtonElement;
-  private seenBtn: HTMLButtonElement;
   private statusEl: HTMLElement;
 
   constructor(private ctx: UiContext) {
@@ -1039,16 +1073,6 @@ class InboxItemView {
       'Save',
     );
 
-    this.seenBtn = h(
-      'button',
-      {
-        class: 'ui-btn ui-perm__btn ui-perm__btn--allow ui-inbox-seen-btn',
-        type: 'button',
-        on: { click: () => this.save('seen') },
-      },
-      'Seen',
-    );
-
     this.statusEl = h('p', { class: 'ui-perm__status', role: 'status' });
 
     const form = h(
@@ -1056,7 +1080,7 @@ class InboxItemView {
       { class: 'ui-inbox-form' },
       this.optsContainer,
       this.noteField,
-      h('div', { class: 'ui-perm__actions' }, this.saveBtn, this.seenBtn),
+      h('div', { class: 'ui-perm__actions' }, this.saveBtn),
       this.statusEl,
     );
     const formSec = section('Decision', form);
@@ -1072,7 +1096,8 @@ class InboxItemView {
     if (this.id === id) return;
     this.id = id;
     this.item = this.ctx.store.snapshot?.inbox?.find((it) => it.id === id) ?? null;
-    this.selectedChoice = this.item?.options[0]?.key ?? '';
+    const hasReco = !!this.item?.reco && this.item.options.some((o) => o.key === this.item!.reco);
+    this.selectedChoice = hasReco ? this.item!.reco! : '';
     this.noteField.value = '';
     setText(this.statusEl, '');
   }
@@ -1085,23 +1110,31 @@ class InboxItemView {
 
   async save(choiceKey = this.selectedChoice): Promise<void> {
     if (!this.item) return;
-    const key = choiceKey || this.item.options[0]?.key || 'seen';
+    if (!choiceKey) return; // Fix 8: Ctrl+Enter does nothing until a choice is picked
+    const key = choiceKey;
     const note = this.noteField.value.trim() || undefined;
-    const res = await this.ctx.store.answerInbox(this.item.id, key, note);
-    if (res && typeof res === 'object' && !res.ok) {
-      setText(this.statusEl, res.error || i18n('Falha ao responder'));
-      return;
-    }
-    if (res === false) {
-      setText(this.statusEl, i18n('Falha ao responder'));
-      return;
-    }
+    this.saveBtn.disabled = true;
     setText(this.statusEl, '');
-    this.ctx.select(null);
+    try {
+      const res = await this.ctx.store.answerInbox(this.item.id, key, note);
+      if (res && typeof res === 'object' && !res.ok) {
+        setText(this.statusEl, res.error || i18n('Falha ao responder'));
+        return;
+      }
+      if (res === false) {
+        setText(this.statusEl, i18n('Falha ao responder'));
+        return;
+      }
+      setText(this.statusEl, '');
+      this.ctx.invalidate();
+    } finally {
+      this.saveBtn.disabled = false;
+    }
   }
 
   render(): void {
-    const live = this.ctx.store.snapshot?.inbox?.find((it) => it.id === this.id);
+    const snap = this.ctx.store.snapshot;
+    const live = snap?.inbox?.find((it) => it.id === this.id);
     if (!live) {
       if (this.item) {
         this.ctx.select(null);
@@ -1109,8 +1142,9 @@ class InboxItemView {
       return;
     }
     this.item = live;
+    const hasReco = !!live.reco && live.options.some((o) => o.key === live.reco);
     if (!this.selectedChoice || !live.options.some((o) => o.key === this.selectedChoice)) {
-      this.selectedChoice = live.options[0]?.key ?? '';
+      this.selectedChoice = hasReco ? live.reco! : '';
     }
 
     setVariant(this.kindDot, 'is-', live.kind);
@@ -1128,13 +1162,20 @@ class InboxItemView {
       setHidden(this.showAgentBtn, true);
     }
 
-    const isApplied = live.kind === 'applied';
-    setHidden(this.optsContainer, isApplied);
-    setHidden(this.noteField, isApplied);
-    setHidden(this.saveBtn, isApplied);
-    setHidden(this.seenBtn, !isApplied);
-
-    if (!isApplied) {
+    const answers = snap?.answers ?? {};
+    const ans = answers[live.id];
+    if (ans) {
+      const opt = live.options.find((o) => o.key === ans.choice);
+      const choiceLabel = opt ? opt.label.replace(/\s*\(Recommended\)/i, '').trim() : ans.choice;
+      setText(this.statusEl, `${choiceLabel} · waiting for the agent`);
+      setHidden(this.optsContainer, true);
+      setHidden(this.noteField, true);
+      setHidden(this.saveBtn, true);
+    } else {
+      setText(this.statusEl, '');
+      setHidden(this.optsContainer, false);
+      setHidden(this.noteField, false);
+      setHidden(this.saveBtn, false);
       this.renderOptions();
     }
   }
@@ -1143,7 +1184,7 @@ class InboxItemView {
     if (!this.item) return;
     this.optsContainer.replaceChildren(
       ...this.item.options.map((opt, idx) => {
-        const isRec = idx === 0;
+        const isRec = !!this.item!.reco && opt.key === this.item!.reco;
         const isSelected = opt.key === this.selectedChoice;
         const cleanLabel = opt.label.replace(/\s*\(Recommended\)/i, '').trim();
         return h(

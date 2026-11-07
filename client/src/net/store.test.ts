@@ -370,7 +370,8 @@ describe('OfficeStore: factory live mode', () => {
       }),
     });
 
-    expect(store.snapshot?.inbox).toHaveLength(0);
+    expect(store.snapshot?.answers?.['c102']).toBeDefined();
+    expect(store.snapshot?.answers?.['c102'].choice).toBe('rotate_now');
   });
 
   it('sendMessage posts to api/messages with JSON { thread, text }', async () => {

@@ -31,7 +31,7 @@ export interface ComposerEnv {
 export function composerMode(agent: AgentInfo | undefined, env: ComposerEnv): ComposerMode {
   if (env.factory) {
     if (agent?.kind === 'sub') return { kind: 'off', text: 'Message the parent' };
-    if (!agent || agent.status === 'offline' || (agent.status as string) === 'done') return { kind: 'off', text: 'Session ended' };
+    if (!agent || agent.status === 'offline' || agent.status === 'done') return { kind: 'off', text: 'Session ended' };
     if (!agent.canReceive) return { kind: 'off', text: 'Not in T3: no way to deliver' };
     return { kind: 'ready' };
   }

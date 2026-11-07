@@ -150,10 +150,10 @@ describe('FactorySimulator', () => {
       expect(item.options.length).toBeGreaterThanOrEqual(1);
     }
 
-    // Applied items have one option 'Seen'
+    // Applied items have real options (never hardcoded seen)
     for (const item of applied) {
-      expect(item.options).toHaveLength(1);
-      expect(item.options[0].label).toBe('Seen');
+      expect(item.options.length).toBeGreaterThanOrEqual(1);
+      expect(item.options.some((o) => o.key === 'seen')).toBe(false);
     }
 
     // Items from waiting agents (2b07, 2e77)
@@ -163,7 +163,7 @@ describe('FactorySimulator', () => {
     expect(from2e77).toBeDefined();
   });
 
-  it('answering removes the item, frees the waiting agent, adds a feed item', () => {
+  it('answering frees the waiting agent and records answer in answers dictionary', () => {
     const start = 10_000;
     const sim = new FactorySimulator({ seed: 42 }, start);
     const snapBefore = sim.snapshot(start);
@@ -179,34 +179,27 @@ describe('FactorySimulator', () => {
     expect(ok).toBe(true);
 
     const snapAfter = sim.snapshot(start + 1_000);
-    expect(snapAfter.inbox!.find((i) => i.id === 'a538')).toBeUndefined();
-    expect(snapAfter.inbox!.length).toBe(7);
+    expect(snapAfter.answers!['a538']).toBeDefined();
+    expect(snapAfter.answers!['a538'].choice).toBe('v1v2');
+    expect(snapAfter.inbox!.find((i) => i.id === 'a538')).toBeDefined();
 
     // Agent freed
     const agentAfter = snapAfter.agents.find((a) => a.name === '2b07')!;
     expect(agentAfter.status).toBe('working');
     expect(agentAfter.permission).toBeUndefined();
-
-    // Feed item added
-    const tickResult = sim.tick(start + 1_000);
-    const feed = tickResult.feed.find((f) => f.activity?.text.includes('You answered a538'));
-    expect(feed).toBeDefined();
   });
 
-  it('applied "Seen" works', () => {
+  it('applied items can be answered and recorded in answers', () => {
     const start = 10_000;
     const sim = new FactorySimulator({ seed: 42 }, start);
 
-    const ok = sim.answerInbox('e204', 'seen', undefined, start + 1_000);
+    const ok = sim.answerInbox('e204', 'ack', undefined, start + 1_000);
     expect(ok).toBe(true);
 
     const snapAfter = sim.snapshot(start + 1_000);
-    expect(snapAfter.inbox!.find((i) => i.id === 'e204')).toBeUndefined();
-    expect(snapAfter.inbox!.length).toBe(7);
-
-    const tickResult = sim.tick(start + 1_000);
-    const feed = tickResult.feed.find((f) => f.activity?.text.includes('You answered e204: Seen'));
-    expect(feed).toBeDefined();
+    expect(snapAfter.answers!['e204']).toBeDefined();
+    expect(snapAfter.answers!['e204'].choice).toBe('ack');
+    expect(snapAfter.inbox!.find((i) => i.id === 'e204')).toBeDefined();
   });
 });
 
@@ -216,11 +209,11 @@ describe('normalizeInboxOptions', () => {
     expect(opts.map((o) => o.key)).toEqual(['merge', 'sendback']);
     expect(opts[0].label).toBe('Merge it');
   });
-  it('handles options as string array with (Recommended) sorted first', () => {
-    const raw = ['Option B', 'Option A (Recommended)', 'Option C'];
-    const opts = normalizeInboxOptions(raw);
+  it('handles options as string array with reco parameter', () => {
+    const raw = ['Option B', 'Option A', 'Option C'];
+    const opts = normalizeInboxOptions(raw, '1');
     expect(opts).toHaveLength(3);
-    expect(opts[0].label).toBe('Option A (Recommended)');
+    expect(opts[0].label).toBe('Option A');
     expect(opts[0].key).toBe('1');
     expect(opts[1].label).toBe('Option B');
     expect(opts[2].label).toBe('Option C');
@@ -241,27 +234,42 @@ describe('normalizeInboxOptions', () => {
   it('handles options as object array with key and label', () => {
     const raw = [
       { key: 'hold', label: 'Hold' },
-      { key: 'merge', label: 'Merge (Recommended)' },
+      { key: 'merge', label: 'Merge' },
     ];
-    const opts = normalizeInboxOptions(raw);
+    const opts = normalizeInboxOptions(raw, 'merge');
     expect(opts).toHaveLength(2);
     expect(opts[0].key).toBe('merge');
     expect(opts[1].key).toBe('hold');
+  });
+
+  it('handles options as object array with id and label (real factory shape)', () => {
+    const raw = [
+      { id: 'v1v2', label: 'Accept v1 and v2 simultaneously' },
+      { id: 'v2only', label: 'Reject v1, require v2 headers only' },
+    ];
+    const opts = normalizeInboxOptions(raw, 'v1v2');
+    expect(opts).toHaveLength(2);
+    expect(opts[0].key).toBe('v1v2');
+    expect(opts[1].key).toBe('v2only');
   });
 });
 
 describe('mapFactoryDataToSnapshot', () => {
   it('maps live rows to OfficeSnapshot properly', () => {
     const data: FactoryOfficeResponse = {
-      builtAt: 1714000000000,
+      builtAt: '2026-11-07T16:20:02Z',
       machine: { id: 'm1', label: 'factory-prod-1' },
+      projects: [
+        { id: 'proj-fee', product: 'core', name: 'Billing engine' },
+        { id: 'proj-supp', product: 'core', name: 'Support service' },
+      ],
       agents: [
         {
           hc: '1a3f',
           provider: 'claude',
           model: 'claude-sonnet-5-5',
-          product: 'bakchich',
-          project: 'New fee engine',
+          product: 'core',
+          project: 'proj-fee',
           state: 'running',
           task: 'Editing fee_calculator.py',
           branch: 'feat/fee-engine',
@@ -272,10 +280,10 @@ describe('mapFactoryDataToSnapshot', () => {
           hc: '2b07',
           provider: 'claude',
           model: 'claude-opus-5-5',
-          product: 'bakchich',
-          project: 'Support bot',
+          product: 'core',
+          project: 'proj-supp',
           state: 'waiting',
-          waiting_for: 'Stripe signature check',
+          waiting_for: 'Webhook signature check',
           parent: '1a3f',
           canReceive: false,
           thread: 'thread-2b07',
@@ -283,15 +291,15 @@ describe('mapFactoryDataToSnapshot', () => {
         {
           hc: '1q03',
           provider: 'opencode',
-          product: 'bakchich',
-          project: 'New fee engine',
+          product: 'core',
+          project: 'proj-fee',
           state: 'quota',
         },
         {
           hc: '9z99',
           provider: 'claude',
-          product: 'bakchich',
-          project: 'New fee engine',
+          product: 'core',
+          project: 'proj-fee',
           state: 'done', // Should be omitted!
         },
       ],
@@ -302,11 +310,23 @@ describe('mapFactoryDataToSnapshot', () => {
           kind: 'urgent',
           title: 'Approve legacy signature',
           context: 'Needs review',
-          options: { opt1: 'Reject', opt2: 'Accept (Recommended)' },
-          project: 'bakchich / Support bot',
+          options: [
+            ['opt1', 'Reject'],
+            ['opt2', 'Accept'],
+          ],
+          reco: 'opt2',
+          project: 'Support service',
           from: '2b07',
+          at: '2026-11-07T16:00:00Z',
         },
       ],
+      answers: {
+        i0: {
+          choice: 'yes',
+          note: 'Done',
+          at: '2026-11-07T16:10:00Z',
+        },
+      },
     };
 
     const { snapshot, feedItems } = mapFactoryDataToSnapshot(data, null, 1714000000000);
@@ -331,7 +351,7 @@ describe('mapFactoryDataToSnapshot', () => {
     expect(agent2b07.kind).toBe('sub');
     expect(agent2b07.parentId).toBe('factory:agent:1a3f');
     expect(agent2b07.status).toBe('waiting');
-    expect(agent2b07.waitingFor).toBe('Stripe signature check');
+    expect(agent2b07.waitingFor).toBe('Webhook signature check');
     expect(agent2b07.canReceive).toBe(false);
 
     expect(agent1q03.status).toBe('idle');
@@ -348,53 +368,64 @@ describe('mapFactoryDataToSnapshot', () => {
 
     // 5. Rooms = projects
     expect(snapshot.rooms.length).toBeGreaterThanOrEqual(2);
-    expect(snapshot.rooms.some((r) => r.name === 'bakchich / New fee engine')).toBe(true);
-    expect(snapshot.rooms.some((r) => r.name === 'bakchich / Support bot')).toBe(true);
+    expect(snapshot.rooms.some((r) => r.name === 'Billing engine')).toBe(true);
+    expect(snapshot.rooms.some((r) => r.name === 'Support service')).toBe(true);
 
     // 6. Inbox options normalized
     expect(snapshot.inbox).toHaveLength(1);
-    expect(snapshot.inbox![0].options[0].label).toContain('(Recommended)');
+    expect(snapshot.inbox![0].options[0].key).toBe('opt2');
+    expect(snapshot.answers!['i0']).toBeDefined();
+    expect(snapshot.answers!['i0'].choice).toBe('yes');
   });
 
   it('generates feed items for state changes across polls and preserves room slots', () => {
     const prevData: FactoryOfficeResponse = {
+      projects: [
+        { id: 'proj-fee', product: 'core', name: 'Billing engine' },
+        { id: 'proj-supp', product: 'core', name: 'Support service' },
+      ],
       agents: [
         {
           hc: '1a3f',
-          product: 'bakchich',
-          project: 'New fee engine',
+          product: 'core',
+          project: 'proj-fee',
           state: 'running',
         },
         {
           hc: '2b07',
-          product: 'bakchich',
-          project: 'Support bot',
+          product: 'core',
+          project: 'proj-supp',
           state: 'running',
         },
       ],
     };
     const { snapshot: prevSnap } = mapFactoryDataToSnapshot(prevData, null, 10_000);
-    const room0Slot = prevSnap.rooms.find((r) => r.name === 'bakchich / New fee engine')!.slot;
+    const room0Slot = prevSnap.rooms.find((r) => r.name === 'Billing engine')!.slot;
 
     // Next poll: 1a3f is done (leaves), 2b07 becomes waiting
     const nextData: FactoryOfficeResponse = {
+      projects: [
+        { id: 'proj-fee', product: 'core', name: 'Billing engine' },
+        { id: 'proj-supp', product: 'core', name: 'Support service' },
+        { id: 'proj-media', product: 'media', name: 'Media processor' },
+      ],
       agents: [
         {
           hc: '1a3f',
-          product: 'bakchich',
-          project: 'New fee engine',
+          product: 'core',
+          project: 'proj-fee',
           state: 'done',
         },
         {
           hc: '2b07',
-          product: 'bakchich',
-          project: 'Support bot',
+          product: 'core',
+          project: 'proj-supp',
           state: 'waiting',
         },
         {
           hc: '3x10',
-          product: 'clip2earn',
-          project: 'Clip2Earn V2',
+          product: 'media',
+          project: 'proj-media',
           state: 'running',
         },
       ],
@@ -402,7 +433,7 @@ describe('mapFactoryDataToSnapshot', () => {
     const { snapshot: nextSnap, feedItems } = mapFactoryDataToSnapshot(nextData, prevSnap, 20_000);
 
     // Slot preserved
-    const nextRoom0 = nextSnap.rooms.find((r) => r.name === 'bakchich / New fee engine')!;
+    const nextRoom0 = nextSnap.rooms.find((r) => r.name === 'Billing engine')!;
     expect(nextRoom0.slot).toBe(room0Slot);
 
     // Feeds generated

@@ -449,7 +449,8 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
     id: 'a538',
     kind: 'urgent',
     title: 'Approve legacy Stripe webhook v1 fallback',
-    context: 'Agent 2b07 needs confirmation on Stripe signature header.\nv1 header is deprecated but still received from older endpoints.\nRejecting may drop incoming payment callbacks.',
+    context:
+      'Agent 2b07 needs confirmation on Stripe signature header.\nv1 header is deprecated but still received from older endpoints.\nRejecting may drop incoming payment callbacks.',
     options: [
       { key: 'v1v2', label: 'Accept v1 and v2 simultaneously (Recommended)' },
       { key: 'v2only', label: 'Reject v1, require v2 headers only' },
@@ -463,7 +464,8 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
     id: 'c102',
     kind: 'urgent',
     title: 'Rotate staging API key for AuraStack',
-    context: 'Sentry reported an exposed secret in staging logs.\nImmediate key rotation will invalidate active preview sessions.\nChoose key rotation window.',
+    context:
+      'Sentry reported an exposed secret in staging logs.\nImmediate key rotation will invalidate active preview sessions.\nChoose key rotation window.',
     options: [
       { key: 'rotate_now', label: 'Rotate immediately and invalidate sessions (Recommended)' },
       { key: 'schedule', label: 'Schedule rotation in 30 minutes' },
@@ -476,7 +478,8 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
     id: 'd547',
     kind: 'action',
     title: 'Sign off v2.4 production deploy',
-    context: '1. Verify migration idempotency on staging cluster\n2. Run smoke test suite on production cluster\n3. Promote docker image to live traffic',
+    context:
+      '1. Verify migration idempotency on staging cluster\n2. Run smoke test suite on production cluster\n3. Promote docker image to live traffic',
     options: [
       { key: 'approve', label: 'Approve immediate deployment (Recommended)' },
       { key: 'hold', label: 'Hold deployment pending QA checks' },
@@ -490,7 +493,8 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
     id: 'b819',
     kind: 'action',
     title: 'Execute fee engine database backfill',
-    context: '1. Lock tier_rates table for migration\n2. Backfill historical records for Q3 2026\n3. Validate checksums across 12 partitions',
+    context:
+      '1. Lock tier_rates table for migration\n2. Backfill historical records for Q3 2026\n3. Validate checksums across 12 partitions',
     options: [
       { key: 'run_now', label: 'Execute backfill during off-peak window (Recommended)' },
       { key: 'dry_run', label: 'Run dry-run simulation only' },
@@ -503,7 +507,8 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
     id: 'm701',
     kind: 'action',
     title: 'Merge factory#70: Support bot webhook handler',
-    context: 'PR #70 passed all CI checks (3/3 passing).\nFixes Stripe signature verification bug and adds regression suite.\nReady to merge.',
+    context:
+      'PR #70 passed all CI checks (3/3 passing).\nFixes Stripe signature verification bug and adds regression suite.\nReady to merge.',
     options: [
       { key: 'merge', label: 'Merge factory#70 into main (Recommended)' },
       { key: 'hold', label: 'Hold PR for manual review' },
@@ -511,37 +516,58 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
     project: 'bakchich / Support bot',
     from: null,
   },
-  // 6. Applied item (information, one option "Seen")
+  // 6. Applied item
   {
     id: 'e204',
     kind: 'applied',
     title: 'Publish weekly support digest',
-    context: 'Scanned 142 customer conversations in Chatwoot.\nTop 3 asks: dark mode fixes, invoice PDF export, webhook retries.\nDigest saved to factory data.',
-    options: [{ key: 'seen', label: 'Seen' }],
+    context:
+      'Scanned 142 customer conversations.\nTop 3 asks: dark mode fixes, invoice export, webhook retries.\nDigest saved to factory data.',
+    options: [
+      { key: 'ack', label: 'Acknowledge summary (Recommended)' },
+      { key: 'archive', label: 'Archive digest' },
+    ],
     project: 'bakchich / Support bot',
     from: null,
   },
-  // 7. Applied item (information, one option "Seen")
+  // 7. Applied item
   {
     id: 'f311',
     kind: 'applied',
     title: 'Apply automated linter fixes',
-    context: 'ESLint & Prettier formatted 38 files in docker/.\nAll commit hooks succeeded without syntax errors.\nNo manual intervention needed.',
-    options: [{ key: 'seen', label: 'Seen' }],
+    context:
+      'Linter formatted 38 files.\nAll commit hooks succeeded without syntax errors.\nNo manual intervention needed.',
+    options: [
+      { key: 'keep', label: 'Keep formatted changes (Recommended)' },
+      { key: 'revert', label: 'Revert changes' },
+    ],
     project: 'factory / Software factory',
     from: null,
   },
-  // 8. Applied item (information, one option "Seen")
+  // 8. Applied item
   {
     id: 'g452',
     kind: 'applied',
-    title: 'Complete Redis cache warmup',
-    context: 'Pre-loaded 45,000 product keys for Black Friday campaign.\nLatency dropped to 0.4ms across Europe-West nodes.\nMemory utilization at 34%.',
-    options: [{ key: 'seen', label: 'Seen' }],
+    title: 'Complete cache warmup',
+    context:
+      'Pre-loaded 45,000 product keys for campaign.\nLatency dropped to 0.4ms across nodes.\nMemory utilization at 34%.',
+    options: [
+      { key: 'done', label: 'Confirm warmup (Recommended)' },
+      { key: 'purge', label: 'Purge cache' },
+    ],
     project: 'bakchich / Black Friday 2026',
     from: null,
   },
 ];
+
+export function parseTime(val: unknown, fallback: number = Date.now()): number {
+  if (typeof val === 'number') return Number.isFinite(val) ? val : fallback;
+  if (typeof val === 'string') {
+    const parsed = Date.parse(val);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
 
 export interface FactoryApiAgent {
   hc: string;
@@ -550,11 +576,11 @@ export interface FactoryApiAgent {
   model?: string;
   via?: string;
   product?: string;
-  project?: string;
+  project?: string | null;
   state?: string; // running, waiting, failed, quota, done, stalled, unknown
   t3Status?: string;
-  since?: number;
-  started_at?: number;
+  since?: string | number;
+  started_at?: string | number;
   tokens?: { today?: number } | number;
   task?: string;
   title?: string;
@@ -570,6 +596,7 @@ export interface FactoryApiAgent {
   activityIcon?: string;
   activityError?: boolean;
   permission?: PermissionRequestInfo;
+  stats?: AgentStats;
 }
 
 export interface FactoryApiInboxItem {
@@ -577,27 +604,28 @@ export interface FactoryApiInboxItem {
   kind: FactoryInboxKind;
   title: string;
   context: string;
-  options: unknown; // string[] | FactoryInboxOption[] | Record<string, string>
+  options: unknown; // string[] | FactoryInboxOption[] | Record<string, string> | [string, string][]
   reco?: string | null;
   project: string;
   from?: string | null;
   thread?: string;
-  at?: number;
+  at?: string | number;
 }
 
 export interface FactoryOfficeResponse {
-  builtAt?: number;
+  builtAt?: string | number;
   machine?: {
     id?: string;
     label?: string;
   };
   products?: Record<string, { name?: string }>;
-  projects?: Array<{ id?: string; name?: string; product?: string; path?: string }>;
+  projects?: Array<{ id: string; name?: string; product?: string; path?: string; kind?: string }>;
   agents?: FactoryApiAgent[];
-  tokens?: { today?: number };
+  tokens?: { today?: number; window?: string; scannedAt?: string | number; claudeAll?: number; note?: string };
   provColors?: Record<string, string>;
   relayConfigured?: boolean;
   inbox?: FactoryApiInboxItem[];
+  answers?: Record<string, { choice: string; note?: string; at: string | number }>;
 }
 
 export function normalizeInboxOptions(
@@ -613,9 +641,10 @@ export function normalizeInboxOptions(
         // the factory stores options as [key, label] pairs
         return { key: String(opt[0] ?? i), label: String(opt[1] ?? opt[0] ?? i) };
       } else if (opt && typeof opt === 'object') {
-        const o = opt as { key?: string; label?: string };
-        const k = o.key !== undefined ? String(o.key) : String(i);
-        const l = o.label !== undefined ? String(o.label) : String(o.key ?? i);
+        const o = opt as { id?: string; key?: string; label?: string };
+        const rawKey = o.id !== undefined ? o.id : o.key;
+        const k = rawKey !== undefined ? String(rawKey) : String(i);
+        const l = o.label !== undefined ? String(o.label) : String(rawKey ?? i);
         return { key: k, label: l };
       }
       return { key: String(i), label: String(opt) };
@@ -627,20 +656,16 @@ export function normalizeInboxOptions(
     }));
   }
 
-  // Sort recommended first
-  list.sort((a, b) => {
-    const aReco = Boolean(
-      (reco && (a.key === reco || a.label.includes(reco))) ||
-      a.label.includes('(Recommended)')
-    );
-    const bReco = Boolean(
-      (reco && (b.key === reco || b.label.includes(reco))) ||
-      b.label.includes('(Recommended)')
-    );
-    if (aReco && !bReco) return -1;
-    if (!aReco && bReco) return 1;
-    return 0;
-  });
+  // Sort recommended first (key === reco only, drop substring matching)
+  if (reco) {
+    list.sort((a, b) => {
+      const aReco = a.key === reco;
+      const bReco = b.key === reco;
+      if (aReco && !bReco) return -1;
+      if (!aReco && bReco) return 1;
+      return 0;
+    });
+  }
 
   return list;
 }
@@ -649,19 +674,13 @@ export function mapFactoryDataToSnapshot(
   data: FactoryOfficeResponse,
   prevSnapshot?: OfficeSnapshot | null,
   now = Date.now(),
+  isMock = false,
 ): { snapshot: OfficeSnapshot; feedItems: FeedItem[]; notices: Notice[] } {
   const feedItems: FeedItem[] = [];
   const notices: Notice[] = [];
   let feedSeq = 0;
 
-  // 1. Rooms
-  const existingRooms = new Map<string, RoomInfo>();
-  if (prevSnapshot?.rooms) {
-    for (const r of prevSnapshot.rooms) {
-      existingRooms.set(r.id, r);
-    }
-  }
-
+  // 1. Rooms: key by product + project id, display name from projects[].name
   const roomMap = new Map<string, RoomInfo>();
   if (prevSnapshot?.rooms) {
     for (const r of prevSnapshot.rooms) {
@@ -669,40 +688,49 @@ export function mapFactoryDataToSnapshot(
     }
   }
 
-  const getOrCreateRoom = (product?: string, project?: string): RoomInfo => {
+  const projectsById = new Map<string, { id: string; product?: string; name?: string; path?: string }>();
+  if (data.projects) {
+    for (const p of data.projects) {
+      if (p.id) projectsById.set(p.id, p);
+    }
+  }
+
+  const getOrCreateRoom = (product?: string, projectId?: string | null): RoomInfo => {
     const prod = product?.trim() || 'project';
-    const proj = project?.trim();
-    const name = proj ? `${prod} / ${proj}` : `${prod} / (no project)`;
+    const projId = projectId?.trim() || null;
 
-    const matched = FACTORY_PROJECTS.find(
-      (p) => p.name.toLowerCase() === name.toLowerCase() || (proj && p.projectName.toLowerCase() === proj.toLowerCase()),
-    );
-    const id = matched ? matched.id : `factory:${prod}/${proj ? proj.toLowerCase().replace(/\s+/g, '-') : '_default'}`;
-    const path = matched ? matched.path : `~/code/${prod}/${proj ? proj.toLowerCase().replace(/\s+/g, '-') : ''}`;
+    let projectObj = projId ? projectsById.get(projId) : undefined;
+    if (!projectObj && projId && data.projects) {
+      projectObj = data.projects.find((p) => p.name === projId);
+    }
 
-    if (roomMap.has(id)) return roomMap.get(id)!;
-    if (existingRooms.has(id)) {
-      const existing = existingRooms.get(id)!;
-      roomMap.set(id, existing);
+    const finalProjId = projectObj ? projectObj.id : projId;
+    const finalProduct = projectObj?.product?.trim() || prod;
+
+    // key by product + project id; fallback _no_project if null
+    const id = finalProjId ? `${finalProduct}:${finalProjId}` : `${finalProduct}:_no_project`;
+
+    // display name from projects[].name (fallback the id; product / (no project) for null)
+    const name = finalProjId ? (projectObj?.name?.trim() || finalProjId) : `${finalProduct} / (no project)`;
+    const path = projectObj?.path ?? `~/code/${finalProduct}/${finalProjId ? finalProjId.replace(/\s+/g, '-') : ''}`;
+
+    if (roomMap.has(id)) {
+      const existing = roomMap.get(id)!;
+      if (name && existing.name !== name) {
+        existing.name = name;
+      }
       return existing;
     }
 
-    const takenSlots = new Set<number>([
-      ...Array.from(existingRooms.values()).map((r) => r.slot),
-      ...Array.from(roomMap.values()).map((r) => r.slot),
-    ]);
-    let slot = matched?.slot;
-    if (slot === undefined || takenSlots.has(slot)) {
-      let nextSlot = 0;
-      while (takenSlots.has(nextSlot)) nextSlot++;
-      slot = nextSlot;
-    }
+    const takenSlots = new Set<number>(Array.from(roomMap.values()).map((r) => r.slot));
+    let nextSlot = 0;
+    while (takenSlots.has(nextSlot)) nextSlot++;
 
     const room: RoomInfo = {
       id,
       name,
       path,
-      slot,
+      slot: nextSlot,
       seed: hash32(id),
       createdAt: now,
     };
@@ -712,7 +740,7 @@ export function mapFactoryDataToSnapshot(
 
   if (data.projects) {
     for (const p of data.projects) {
-      getOrCreateRoom(p.product, p.name);
+      getOrCreateRoom(p.product, p.id);
     }
   }
   if (data.agents) {
@@ -739,8 +767,8 @@ export function mapFactoryDataToSnapshot(
     else if (row.state === 'running' || row.state === 'failed') status = 'working';
     else if (row.state === 'unknown') status = 'idle';
 
-    // Activity
-    const actText = row.activityText || row.t3Status || row.task || (
+    // Activity: task before t3Status
+    const actText = row.activityText || row.task || row.t3Status || (
       status === 'waiting' ? (row.waiting_for || row.waitingFor || 'Waiting for user input')
       : row.state === 'quota' ? 'Hit quota limit'
       : row.state === 'stalled' ? 'Stalled'
@@ -759,7 +787,7 @@ export function mapFactoryDataToSnapshot(
       : '✏️'
     );
 
-    const activityAt = row.since ?? row.started_at ?? (prevAgent?.activity?.at ?? now);
+    const activityAt = parseTime(row.since ?? row.started_at, prevAgent?.activity?.at ?? now);
     const activity: Activity = {
       id: `act-${hash32(row.hc + ':' + actText)}`,
       kind: actKind,
@@ -781,17 +809,22 @@ export function mapFactoryDataToSnapshot(
       { id: '1', title: row.title || row.task || row.hc, status: status === 'idle' ? 'completed' : 'in_progress' },
     ];
 
-    const stats: AgentStats = prevAgent?.stats ?? {
+    const stats: AgentStats = row.stats ?? prevAgent?.stats ?? (isMock ? {
       toolCalls: 12 + (hash32(row.hc + ':calls') % 40),
       tokensIn: 80_000 + (hash32(row.hc + ':tin') % 300_000),
       tokensOut: 2_000 + (hash32(row.hc + ':tout') % 20_000),
       linesAdded: 45 + (hash32(row.hc + ':lines') % 120),
       linesRemoved: 10 + (hash32(row.hc + ':rem') % 40),
       subagents: isSub ? 0 : 1,
-    };
+    } : {
+      toolCalls: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      subagents: 0,
+    });
 
     let permission = row.permission;
-    if (!permission && status === 'waiting') {
+    if (isMock && !permission && status === 'waiting') {
       const waitReason = row.waiting_for || row.waitingFor || 'Waiting for user confirmation';
       permission = {
         id: `perm-${row.hc}`,
@@ -799,7 +832,7 @@ export function mapFactoryDataToSnapshot(
         title: waitReason,
         text: waitReason,
         icon: '✋',
-        createdAt: (row.since ?? now) - 180_000,
+        createdAt: parseTime(row.since, now) - 180_000,
         expiresAt: now + 600_000,
       };
     }
@@ -826,7 +859,7 @@ export function mapFactoryDataToSnapshot(
       tasks,
       model: row.model,
       gitBranch: row.branch,
-      startedAt: row.since ?? row.started_at ?? (prevAgent?.startedAt ?? now),
+      startedAt: parseTime(row.since ?? row.started_at, prevAgent?.startedAt ?? now),
       lastEventAt: now,
       statusSince: prevAgent && prevAgent.status === status ? prevAgent.statusSince : now,
       stats,
@@ -909,10 +942,23 @@ export function mapFactoryDataToSnapshot(
     title: item.title,
     context: item.context,
     options: normalizeInboxOptions(item.options, item.reco),
+    reco: item.reco ?? null,
     project: item.project,
     from: item.from ?? null,
-    at: item.at ?? now,
+    at: parseTime(item.at, now),
   }));
+
+  // Answers
+  const answers: Record<string, { choice: string; note?: string; at: number }> = {};
+  if (data.answers) {
+    for (const [id, ans] of Object.entries(data.answers)) {
+      answers[id] = {
+        choice: ans.choice,
+        note: ans.note,
+        at: parseTime(ans.at, now),
+      };
+    }
+  }
 
   // 5. Feed derived from state changes
   if (prevSnapshot) {
@@ -966,11 +1012,12 @@ export function mapFactoryDataToSnapshot(
 
   const snapshot: OfficeSnapshot = {
     rev: prevSnapshot ? prevSnapshot.rev + 1 : 0,
-    serverTime: data.builtAt ?? now,
+    serverTime: now,
     rooms,
     agents,
     accounts,
     inbox,
+    answers,
     meta: {
       demo: Boolean(data.machine?.id?.includes('demo') || data.machine?.label?.includes('demo')),
       sources: [],
@@ -992,7 +1039,7 @@ export function buildInitialFactoryOfficeResponse(): FactoryOfficeResponse {
       provider: spec.account.replace(/^\./, ''),
       model: spec.model,
       product: proj.product,
-      project: proj.projectName,
+      project: proj.id,
       state: spec.factoryState,
       branch: spec.gitBranch,
       title: spec.title,
@@ -1036,8 +1083,14 @@ export function buildInitialFactoryOfficeResponse(): FactoryOfficeResponse {
   }));
 
   return {
-    builtAt: Date.now(),
+    builtAt: new Date(Date.now()).toISOString(),
     machine: { label: 'office-sim-1' },
+    projects: FACTORY_PROJECTS.map((p) => ({
+      id: p.id,
+      product: p.product,
+      name: p.name,
+      path: p.path,
+    })),
     tokens: { today: 480_000 },
     agents,
     inbox,
@@ -1071,6 +1124,7 @@ export class FactorySimulator {
   private pendingNotices: Notice[] = [];
   private tickStep = 0;
   private inbox: FactoryInboxItem[] = [];
+  private answers: Record<string, { choice: string; note?: string; at: number }> = {};
 
   constructor(opts: DemoOptions = {}, now = Date.now()) {
     this.rng = mulberry32(opts.seed ?? hash32(`factory:${now}`));
@@ -1080,7 +1134,7 @@ export class FactorySimulator {
 
     // Build via shared mapping
     const initial = buildInitialFactoryOfficeResponse();
-    const { snapshot } = mapFactoryDataToSnapshot(initial, null, now);
+    const { snapshot } = mapFactoryDataToSnapshot(initial, null, now, true);
     for (const r of snapshot.rooms) {
       this.rooms.set(r.id, r);
     }
@@ -1088,113 +1142,6 @@ export class FactorySimulator {
       this.agents.set(a.id, a);
     }
     this.inbox = snapshot.inbox ? snapshot.inbox.map((i) => ({ ...i, options: i.options.map((o) => ({ ...o })) })) : [];
-    for (const p of FACTORY_PROJECTS) {
-      const room: RoomInfo = {
-        id: p.id,
-        name: p.name,
-        path: p.path,
-        slot: p.slot,
-        seed: hash32(p.id),
-        createdAt: now,
-      };
-      this.rooms.set(p.id, room);
-    }
-
-    // 2. Build initial ~18 agents
-    for (const spec of AGENT_SPECS) {
-      const project = FACTORY_PROJECTS[spec.roomIndex];
-      const agentId = `factory:agent:${spec.handle}`;
-      const isSub = spec.kind === 'sub';
-      const parentId = isSub && spec.parentHandle ? `factory:agent:${spec.parentHandle}` : undefined;
-
-      // Status mapping
-      let status: AgentInfo['status'] = 'working';
-      if (spec.factoryState === 'waiting') status = 'waiting';
-      else if (spec.factoryState === 'stalled' || spec.factoryState === 'quota') status = 'idle';
-      else if (spec.factoryState === 'running' || spec.factoryState === 'failed') status = 'working';
-
-      const activity: Activity = {
-        id: `act-${++this.seq}`,
-        kind: spec.activityKind,
-        icon: spec.activityIcon,
-        text: spec.activityText,
-        at: now - Math.floor(this.rng() * 300_000),
-        error: spec.activityError,
-      };
-
-      const tasks: TaskItem[] = [
-        { id: '1', title: spec.title, status: status === 'idle' ? 'completed' : 'in_progress' },
-      ];
-
-      const stats: AgentStats = {
-        toolCalls: 12 + Math.floor(this.rng() * 40),
-        tokensIn: 80_000 + Math.floor(this.rng() * 300_000),
-        tokensOut: 2_000 + Math.floor(this.rng() * 20_000),
-        linesAdded: 45 + Math.floor(this.rng() * 120),
-        linesRemoved: 10 + Math.floor(this.rng() * 40),
-        subagents: isSub ? 0 : spec.handle === '1a3f' || spec.handle === '2a14' || spec.handle === '1a10' ? 1 : 0,
-      };
-
-      let permission: PermissionRequestInfo | undefined;
-      if (spec.permission) {
-        permission = {
-          id: spec.permission.id,
-          tool: spec.permission.tool,
-          title: spec.permission.title,
-          text: spec.permission.text,
-          icon: spec.permission.icon,
-          createdAt: now - 180_000,
-          expiresAt: now + 600_000,
-          questions: spec.permission.questionHeader && spec.permission.questionText && spec.permission.options
-            ? [
-                {
-                  index: 0,
-                  header: spec.permission.questionHeader,
-                  question: spec.permission.questionText,
-                  options: spec.permission.options.map((label, index) => ({ index, label })),
-                },
-              ]
-            : undefined,
-        };
-      }
-
-      const agent: AgentInfo = {
-        id: agentId,
-        kind: spec.kind,
-        parentId,
-        roomId: project.id,
-        name: spec.handle,
-        look: hash32(spec.handle) % 2 === 0 ? 'm' : 'f',
-        role: isSub ? 'Subagent' : 'Main agent',
-        title: spec.title,
-        sessionId: `factory:sess:${spec.handle}`,
-        account: spec.account,
-        status,
-        waitingFor: spec.waitingFor,
-        permission,
-        activity,
-        recent: [activity],
-        tasks,
-        model: spec.model,
-        gitBranch: spec.gitBranch,
-        startedAt: now - (600_000 + Math.floor(this.rng() * 3_600_000)),
-        lastEventAt: activity.at,
-        statusSince: activity.at,
-        stats,
-        seed: hash32(spec.handle),
-        background: isSub,
-      };
-
-      this.agents.set(agentId, agent);
-    }
-
-    // 3. Build initial ~8 mock inbox items
-    const offsets = [180_000, 360_000, 120_000, 420_000, 90_000, 600_000, 750_000, 900_000];
-    this.inbox = INITIAL_INBOX_SPECS.map((spec, i) => ({
-      ...spec,
-      options: spec.options.map((o) => ({ ...o })),
-      at: now - (offsets[i] ?? (100_000 + i * 50_000)),
-    }));
 
     // Seed the activity feed with each agent's current activity (oldest first), so it is not empty on open.
     this.pendingFeed = [...this.agents.values()]
@@ -1225,6 +1172,7 @@ export class FactorySimulator {
         ...item,
         options: item.options.map((o) => ({ ...o })),
       })),
+      answers: { ...this.answers },
       meta: {
         demo: true,
         sources: [],
@@ -1395,8 +1343,8 @@ export class FactorySimulator {
     const rawLabel = opt?.label ?? choiceKey;
     const cleanLabel = rawLabel.replace(/\s*\(Recommended\)/i, '').trim();
 
-    // 1. Remove item from list
-    this.inbox = this.inbox.filter((it) => it.id !== id);
+    // 1. Record answer (item stays in inbox until resolved by agent)
+    this.answers[id] = { choice: choiceKey, note, at: now };
 
     // 2. Free waiting agent if linked
     if (item.from) {

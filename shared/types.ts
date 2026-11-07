@@ -343,6 +343,7 @@ export interface FactoryInboxItem {
   title: string;
   context: string;
   options: FactoryInboxOption[];
+  reco?: string | null;
   project: string;
   from: string | null;
   at: number;
@@ -358,6 +359,8 @@ export interface OfficeSnapshot {
   accounts: AccountInfo[];
   /** Itens da caixa de entrada da fábrica (modo fábrica). */
   inbox?: FactoryInboxItem[];
+  /** Respostas a itens da caixa de entrada (modo fábrica). */
+  answers?: Record<string, { choice: string; note?: string; at: number }>;
   meta: {
     demo: boolean;
     sources: SourceInfo[];

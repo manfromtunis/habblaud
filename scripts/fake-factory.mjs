@@ -20,43 +20,43 @@ export function createFakeFactoryServer(customFixtures = {}) {
     'thread-2b07': [
       {
         role: 'user',
-        text: 'Please investigate the Stripe webhook signature error.',
-        at: Date.now() - 120_000,
+        text: 'Please investigate the webhook signature error.',
+        at: new Date(Date.now() - 120_000).toISOString(),
       },
       {
         role: 'assistant',
         text: 'I found that legacy v1 signatures are being dropped. Should we support fallback?',
-        at: Date.now() - 60_000,
+        at: new Date(Date.now() - 60_000).toISOString(),
       },
     ],
     'thread-1a3f': [
       {
         role: 'user',
         text: 'Implement transaction ledger idempotency.',
-        at: Date.now() - 300_000,
+        at: new Date(Date.now() - 300_000).toISOString(),
       },
       {
         role: 'assistant',
         text: 'Working on idempotency keys and ledger table schema.',
-        at: Date.now() - 180_000,
+        at: new Date(Date.now() - 180_000).toISOString(),
       },
     ],
   };
 
   const officeData = {
-    builtAt: Date.now(),
+    builtAt: new Date().toISOString(),
     machine: {
       id: 'mac-1',
       label: 'office-live-1',
     },
     products: {
-      bakchich: { name: 'Bakchich' },
+      core: { name: 'Core Engine' },
       aurastack: { name: 'AuraStack' },
       factory: { name: 'Software Factory' },
     },
     projects: [
-      { id: 'factory:bakchich/support-bot', product: 'bakchich', name: 'Support bot' },
-      { id: 'factory:bakchich/new-fee-engine', product: 'bakchich', name: 'New fee engine' },
+      { id: 'factory:core/support-bot', product: 'core', name: 'Support bot' },
+      { id: 'factory:core/ledger', product: 'core', name: 'Transaction ledger' },
       { id: 'factory:aurastack/store', product: 'aurastack', name: 'AuraStack store' },
     ],
     agents: [
@@ -65,14 +65,16 @@ export function createFakeFactoryServer(customFixtures = {}) {
         who: 'Agent 2b07',
         provider: 'claude',
         model: 'claude-sonnet-5-5',
-        product: 'bakchich',
-        project: 'Support bot',
+        product: 'core',
+        project: 'factory:core/support-bot',
         state: 'waiting',
+        task: 'Checking webhook signature fallback',
         t3Status: 'Waiting on owner decision',
-        waiting_for: 'Approve legacy Stripe webhook v1 fallback',
+        waiting_for: 'Approve legacy signature header fallback',
         thread: 'thread-2b07',
         parent: '2b07',
         canReceive: true,
+        start_time: new Date(Date.now() - 3600_000).toISOString(),
         tokens: { today: 42_000 },
       },
       {
@@ -80,13 +82,15 @@ export function createFakeFactoryServer(customFixtures = {}) {
         who: 'Agent 1a3f',
         provider: 'antigravity',
         model: 'gemini-3.8-flash-high',
-        product: 'bakchich',
-        project: 'New fee engine',
+        product: 'core',
+        project: 'factory:core/ledger',
         state: 'running',
+        task: 'Checking idempotency keys in ledger',
         t3Status: 'Implementing transaction ledger',
         thread: 'thread-1a3f',
         parent: '1a3f',
         canReceive: true,
+        start_time: new Date(Date.now() - 1800_000).toISOString(),
         tokens: { today: 18_000 },
       },
       {
@@ -94,26 +98,30 @@ export function createFakeFactoryServer(customFixtures = {}) {
         who: 'Subagent 2b07.1',
         provider: 'claude',
         model: 'claude-sonnet-5-5',
-        product: 'bakchich',
-        project: 'Support bot',
+        product: 'core',
+        project: 'factory:core/support-bot',
         state: 'running',
+        task: 'Running migration verification',
         t3Status: 'Checking migration scripts',
         thread: 'thread-2b07-sub',
         parent: '2b07',
         canReceive: false,
+        start_time: new Date(Date.now() - 900_000).toISOString(),
       },
       {
         hc: '1k05',
         who: 'Agent 1k05',
         provider: 'opencode',
         model: 'deepseek-v3',
-        product: 'bakchich',
-        project: 'Support bot',
+        product: 'core',
+        project: 'factory:core/support-bot',
         state: 'quota',
+        task: 'Waiting for quota refresh',
         t3Status: 'Rate limit reached',
         thread: 'thread-1k05',
         parent: '1k05',
         canReceive: true,
+        start_time: new Date(Date.now() - 600_000).toISOString(),
       },
     ],
     tokens: { today: 125_000 },
@@ -126,19 +134,21 @@ export function createFakeFactoryServer(customFixtures = {}) {
       {
         id: 'a538',
         kind: 'urgent',
-        title: 'Approve legacy Stripe webhook v1 fallback',
+        title: 'Approve legacy signature header fallback',
         context:
-          'Agent 2b07 needs confirmation on Stripe signature header.\nv1 header is deprecated but still received from older endpoints.',
+          'Agent 2b07 needs confirmation on signature header.\nv1 header is deprecated but still received from older endpoints.',
         options: [
-          ['v1v2', 'Accept v1 and v2 simultaneously'],
-          ['v2only', 'Reject v1, require v2 headers only'],
+          { id: 'v1v2', label: 'Accept v1 and v2 simultaneously' },
+          { id: 'v2only', label: 'Reject v1, require v2 headers only' },
         ],
         reco: 'v1v2',
-        project: 'bakchich / Support bot',
+        project: 'factory:core/support-bot',
         from: '2b07',
         thread: 'thread-2b07',
+        created_at: new Date(Date.now() - 600_000).toISOString(),
       },
     ],
+    answers: {},
     ...customFixtures,
   };
 
@@ -157,8 +167,15 @@ export function createFakeFactoryServer(customFixtures = {}) {
       return;
     }
 
-    // Serve HTML at /office and /office/
-    if (pathname === '/office' || pathname === '/office/' || pathname === '/') {
+    // Redirect /office/ to /office
+    if (pathname === '/office/') {
+      res.writeHead(302, { Location: '/office' + (parsedUrl.search || '') });
+      res.end();
+      return;
+    }
+
+    // Serve HTML at /office
+    if (pathname === '/office' || pathname === '/') {
       try {
         const html = fs.readFileSync(HTML_FILE, 'utf8');
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -170,28 +187,22 @@ export function createFakeFactoryServer(customFixtures = {}) {
       return;
     }
 
-    // 1. GET api/office
-    if (
-      (pathname === '/api/office' || pathname === '/office/api/office') &&
-      req.method === 'GET'
-    ) {
+    // 1. GET /api/office
+    if (pathname === '/api/office' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(officeData));
       return;
     }
 
-    // 2. GET api/threads/<thread>/messages
-    const threadMatch =
-      pathname.match(/^\/api\/threads\/([^/]+)\/messages/) ||
-      pathname.match(/^\/office\/api\/threads\/([^/]+)\/messages/);
-
+    // 2. GET /api/threads/:id/messages
+    const threadMatch = pathname.match(/^\/api\/threads\/([^/]+)\/messages$/);
     if (threadMatch && req.method === 'GET') {
       const threadId = decodeURIComponent(threadMatch[1]);
       const msgs = threadMessages[threadId] || [
         {
           role: 'assistant',
           text: `Thread ${threadId} initialized. Ready for instructions.`,
-          at: Date.now() - 30_000,
+          at: new Date(Date.now() - 30_000).toISOString(),
         },
       ];
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -199,11 +210,8 @@ export function createFakeFactoryServer(customFixtures = {}) {
       return;
     }
 
-    // 3. POST api/messages
-    if (
-      (pathname === '/api/messages' || pathname === '/office/api/messages') &&
-      req.method === 'POST'
-    ) {
+    // 3. POST /api/messages
+    if (pathname === '/api/messages' && req.method === 'POST') {
       let body = '';
       req.on('data', (chunk) => {
         body += chunk;
@@ -219,7 +227,7 @@ export function createFakeFactoryServer(customFixtures = {}) {
             threadMessages[parsed.thread].push({
               role: 'user',
               text: parsed.text,
-              at: Date.now(),
+              at: new Date().toISOString(),
             });
           }
 
@@ -233,11 +241,8 @@ export function createFakeFactoryServer(customFixtures = {}) {
       return;
     }
 
-    // 4. POST api/answers
-    if (
-      (pathname === '/api/answers' || pathname === '/office/api/answers') &&
-      req.method === 'POST'
-    ) {
+    // 4. POST /api/answers
+    if (pathname === '/api/answers' && req.method === 'POST') {
       let body = '';
       req.on('data', (chunk) => {
         body += chunk;
@@ -247,11 +252,8 @@ export function createFakeFactoryServer(customFixtures = {}) {
           const parsed = JSON.parse(body);
           recordedAnswers.push(parsed);
 
-          // Drop answered items from inbox
-          if (officeData.inbox && typeof parsed === 'object') {
-            const answeredIds = new Set(Object.keys(parsed));
-            officeData.inbox = officeData.inbox.filter((item) => !answeredIds.has(item.id));
-          }
+          if (!officeData.answers) officeData.answers = {};
+          Object.assign(officeData.answers, parsed);
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true }));

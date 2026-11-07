@@ -7,7 +7,7 @@
 import type { AppearanceParts } from '../../../shared/appearance';
 import type { Activity, AgentDetail, AgentInfo, FactoryInboxItem, FeedItem, Notice, OfficeSnapshot, OutboxMessage, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
 import { DemoSimulator } from '../../../shared/demo/simulator';
-import { FactorySimulator, mapFactoryDataToSnapshot, type FactoryOfficeResponse } from '../../../shared/demo/factory';
+import { FactorySimulator, mapFactoryDataToSnapshot, parseTime, type FactoryOfficeResponse } from '../../../shared/demo/factory';
 import { i18n } from '../../../shared/i18n';
 
 export function factoryApiUrl(path: string, search: string = (typeof location !== 'undefined' ? location.search : '')): string {
@@ -121,16 +121,23 @@ export class OfficeStore {
 
   private factoryLiveTimer: ReturnType<typeof setInterval> | null = null;
   private focusHandler: (() => void) | null = null;
+  private factoryPolling = false;
+  private lastAppliedPollAt = 0;
+  private pendingAnswers = new Map<string, { choice: string; note?: string; at: number }>();
 
   constructor(opts: StoreOptions = {}) {
     const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
     const params = new URLSearchParams(search);
-    this.factory = !!opts.factory || params.has('factory');
+    const hasFactoryParam = params.has('factory');
+    const isFactoryBuild =
+      typeof (globalThis as unknown as { __FACTORY_DEFAULT__?: boolean }).__FACTORY_DEFAULT__ !== 'undefined' ||
+      (typeof document !== 'undefined' && document.documentElement?.dataset?.mode === 'factory');
+    this.factory = opts.factory ?? (hasFactoryParam || isFactoryBuild);
     if (opts.mock !== undefined) {
       this.mock = opts.mock;
     } else {
       const isFile = typeof location !== 'undefined' && location.protocol === 'file:';
-      this.mock = params.has('mock') || (this.factory ? (params.has('factory') || isFile) : false);
+      this.mock = params.has('mock') || (this.factory ? (hasFactoryParam || isFile) : isFile);
     }
     this.search = search;
     this.openStream = opts.eventSource ?? ((url) => new EventSource(url));
@@ -338,11 +345,13 @@ export class OfficeStore {
           } catch {}
           return { ok: false, error: errMsg };
         }
-        if (this.snapshot && this.snapshot.inbox) {
-          const remaining = this.snapshot.inbox.filter((it) => it.id !== id);
+        this.pendingAnswers.set(id, { choice: choiceKey, note, at: Date.now() });
+        if (this.snapshot) {
+          const answers = { ...(this.snapshot.answers ?? {}) };
+          answers[id] = { choice: choiceKey, note, at: Date.now() };
           this.applySnapshot({
             ...this.snapshot,
-            inbox: remaining,
+            answers,
           });
         }
         void this.pollFactoryLive();
@@ -417,7 +426,7 @@ export class OfficeStore {
           const msg: OutboxMessage = {
             id: `msg-${now.toString(36)}`,
             agentId,
-            status: 'delivered',
+            status: 'queued',
             createdAt: now,
             updatedAt: now,
           };
@@ -631,6 +640,8 @@ export class OfficeStore {
   }
 
   async pollFactoryLive(): Promise<boolean> {
+    if (this.factoryPolling) return false;
+    this.factoryPolling = true;
     try {
       const url = factoryApiUrl('api/office', this.search);
       const res = await fetch(url);
@@ -639,8 +650,32 @@ export class OfficeStore {
         return false;
       }
       const data = (await res.json()) as FactoryOfficeResponse;
+      const pollTime = parseTime(data.builtAt, Date.now());
+      if (pollTime < this.lastAppliedPollAt) {
+        return false;
+      }
+      this.lastAppliedPollAt = pollTime;
+
+      // Merge pending local answers into data.answers if item still in inbox
+      const combinedAnswers: Record<string, { choice: string; note?: string; at: string | number }> = {
+        ...(data.answers ?? {}),
+      };
+      for (const [ansId, ans] of this.pendingAnswers.entries()) {
+        const itemStillInInbox = (data.inbox ?? []).some((it) => it.id === ansId);
+        if (itemStillInInbox) {
+          if (!combinedAnswers[ansId]) {
+            combinedAnswers[ansId] = ans;
+          } else {
+            this.pendingAnswers.delete(ansId);
+          }
+        } else {
+          this.pendingAnswers.delete(ansId);
+        }
+      }
+      data.answers = combinedAnswers;
+
       const now = Date.now();
-      const { snapshot, feedItems, notices } = mapFactoryDataToSnapshot(data, this.snapshot, now);
+      const { snapshot, feedItems, notices } = mapFactoryDataToSnapshot(data, this.snapshot, now, false);
       this.applySnapshot(snapshot);
       this.applyFeed(feedItems);
       for (const n of notices) {
@@ -651,14 +686,15 @@ export class OfficeStore {
     } catch {
       this.setConnection('closed');
       return false;
+    } finally {
+      this.factoryPolling = false;
     }
   }
 
   private startMock(): void {
     if (this.mockTimer) return;
     this.setConnection('mock');
-    const isFactory = this.factory || new URLSearchParams(this.search).has('factory');
-    const sim = isFactory
+    const sim = this.factory
       ? new FactorySimulator(mockOptionsFrom(this.search))
       : new DemoSimulator(mockOptionsFrom(this.search));
     this.mockSim = sim;

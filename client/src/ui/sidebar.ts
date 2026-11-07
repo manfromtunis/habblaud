@@ -224,7 +224,8 @@ export class Sidebar implements UiComponent {
     for (const [view, b] of Object.entries(this.viewBtns)) setAttr(b, 'aria-checked', String(view === state.view));
 
     if (this.ctx.store.factory) {
-      const openCount = (snap?.inbox ?? []).length;
+      const answers = snap?.answers ?? {};
+      const openCount = (snap?.inbox ?? []).filter((i) => !answers[i.id]).length;
       setText(this.inboxBadge, String(openCount));
       setHidden(this.inboxBadge, openCount === 0);
     }
@@ -301,6 +302,7 @@ export class Sidebar implements UiComponent {
   private renderInbox(): void {
     const snap = this.ctx.store.snapshot;
     const allItems = snap?.inbox ?? [];
+    const answers = snap?.answers ?? {};
     const now = this.ctx.now();
     const q = this.query.trim().toLowerCase();
 
@@ -336,17 +338,22 @@ export class Sidebar implements UiComponent {
       return;
     }
 
-    const groups: { key: 'urgent' | 'action' | 'applied'; label: string }[] = [
+    const groups: { key: 'urgent' | 'action' | 'applied' | 'answered'; label: string }[] = [
       { key: 'urgent', label: 'Urgent' },
       { key: 'action', label: 'Action' },
       { key: 'applied', label: 'Applied' },
+      { key: 'answered', label: 'Answered' },
     ];
 
     const sections: HTMLElement[] = [];
     let cardIdx = 0;
 
     for (const g of groups) {
-      const groupItems = filtered.filter((it) => it.kind === g.key).sort((a, b) => b.at - a.at);
+      const groupItems = (
+        g.key === 'answered'
+          ? filtered.filter((it) => !!answers[it.id]).sort((a, b) => (answers[b.id]?.at ?? b.at) - (answers[a.id]?.at ?? a.at))
+          : filtered.filter((it) => !answers[it.id] && it.kind === g.key).sort((a, b) => b.at - a.at)
+      );
       if (groupItems.length === 0) continue;
 
       const count = h('span', { class: 'ui-room__count', text: String(groupItems.length) });
@@ -358,11 +365,20 @@ export class Sidebar implements UiComponent {
 
       const cards = groupItems.map((item) => {
         const thisIdx = cardIdx++;
-        const dot = h('span', { class: `ui-inbox-dot is-${item.kind}` });
+        const ans = answers[item.id];
+        const dot = h('span', { class: `ui-inbox-dot is-${ans ? 'answered' : item.kind}` });
         const title = h('span', { class: 'ui-inbox-card__title', text: item.title });
         const proj = h('span', { class: 'ui-inbox-card__proj', text: item.project });
-        const age = h('span', { class: 'ui-inbox-card__age', text: relativeTime(item.at, now) });
-        const sub = h('div', { class: 'ui-inbox-card__sub' }, proj, h('span', { text: '·' }), age);
+        let sub: HTMLElement;
+        if (ans) {
+          const opt = item.options.find((o) => o.key === ans.choice);
+          const choiceLabel = opt ? opt.label.replace(/\s*\(Recommended\)/i, '').trim() : ans.choice;
+          const status = h('span', { class: 'ui-inbox-card__answered', text: `${choiceLabel} · waiting for the agent` });
+          sub = h('div', { class: 'ui-inbox-card__sub' }, proj, h('span', { text: ' · ' }), status);
+        } else {
+          const age = h('span', { class: 'ui-inbox-card__age', text: relativeTime(item.at, now) });
+          sub = h('div', { class: 'ui-inbox-card__sub' }, proj, h('span', { text: ' · ' }), age);
+        }
         const content = h('div', { class: 'ui-inbox-card__content' }, title, sub);
 
         let avatar: HTMLElement | null = null;
@@ -380,9 +396,9 @@ export class Sidebar implements UiComponent {
         const btn = h(
           'button',
           {
-            class: `ui-inbox-card is-${item.kind} ${isKFocus ? 'is-kfocus' : ''}`,
+            class: `ui-inbox-card is-${ans ? 'answered' : item.kind} ${isKFocus ? 'is-kfocus' : ''}`,
             type: 'button',
-            attrs: { 'data-id': item.id, 'data-kind': item.kind },
+            attrs: { 'data-id': item.id, 'data-kind': ans ? 'answered' : item.kind },
             on: {
               click: () => {
                 this.inboxKIndex = thisIdx;

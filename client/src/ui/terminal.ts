@@ -907,23 +907,34 @@ export class TerminalPanel implements UiComponent, TerminalControl {
           const url = factoryApiUrl(`api/threads/${encodeURIComponent(thread)}/messages?limit=40`);
           const res = await fetch(url);
           if (!res.ok) {
-            this.conn = 'failed';
-            this.renderState();
-            return;
+            throw new Error(`HTTP ${res.status}`);
           }
-          const msgs = (await res.json()) as Array<{ role: 'user' | 'assistant'; text: string; at: number }>;
-          const entries: TerminalEntry[] = (Array.isArray(msgs) ? msgs : []).map((m, i) => ({
-            id: `msg-${i}-${m.at}`,
-            kind: m.role === 'user' ? 'user' : 'assistant',
-            text: m.text,
-            at: m.at,
-          }));
+          if (this.id !== id) return;
+          const msgs = (await res.json()) as Array<{ role: 'user' | 'assistant'; text: string; at: number | string }>;
+          if (this.id !== id) return;
+          const entries: TerminalEntry[] = (Array.isArray(msgs) ? msgs : []).map((m, i) => {
+            const at = typeof m.at === 'string' ? (Date.parse(m.at) || 0) : (m.at ?? 0);
+            return {
+              id: `${m.role}-${at}-${i}`,
+              kind: m.role === 'user' ? 'user' : 'assistant',
+              text: m.text,
+              at,
+            };
+          });
+          const wasAtBottom = this.follow || !this.loaded;
+          const prevScrollTop = this.scroll.scrollTop;
           this.onInit({ agentId: id, entries, truncated: false });
+          if (!wasAtBottom) {
+            this.scroll.scrollTop = prevScrollTop;
+            this.follow = false;
+          }
           this.conn = 'open';
           this.renderState();
         } catch {
-          this.conn = 'failed';
-          this.renderState();
+          if (this.id === id) {
+            this.conn = 'failed';
+            this.renderState();
+          }
         }
       };
 
