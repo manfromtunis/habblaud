@@ -184,12 +184,21 @@ ${cssContent}
       window.__ASSET_URLS__ = ${JSON.stringify(assetUrls)};
       window.__ASSETS_MANIFEST__ = ${JSON.stringify(assetsManifest)};
 
-      // Strict network guard: ensure no network calls leave the page
+      // Network guard: on file://, block any outgoing network calls.
+      // When served over http/https (e.g. at /office), allow relative / same-origin requests.
       const _origFetch = window.fetch;
       window.fetch = function(input, init) {
         const url = typeof input === 'string' ? input : input && input.url ? input.url : String(input);
         if (url.startsWith('data:') || url.startsWith('blob:')) {
           return _origFetch ? _origFetch.call(this, input, init) : Promise.reject(new Error('fetch unavailable'));
+        }
+        if (location.protocol !== 'file:') {
+          try {
+            const resolved = new URL(url, location.href);
+            if (resolved.origin === location.origin) {
+              return _origFetch ? _origFetch.call(this, input, init) : Promise.reject(new Error('fetch unavailable'));
+            }
+          } catch {}
         }
         console.warn('[standalone guard] blocked request:', url);
         return Promise.reject(new Error('Network calls are disabled in standalone build: ' + url));

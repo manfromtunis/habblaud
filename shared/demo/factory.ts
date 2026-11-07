@@ -543,6 +543,504 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
   },
 ];
 
+export interface FactoryApiAgent {
+  hc: string;
+  who?: string;
+  provider?: string;
+  model?: string;
+  via?: string;
+  product?: string;
+  project?: string;
+  state?: string; // running, waiting, failed, quota, done, stalled, unknown
+  t3Status?: string;
+  since?: number;
+  started_at?: number;
+  tokens?: { today?: number } | number;
+  task?: string;
+  title?: string;
+  branch?: string;
+  waiting_for?: string;
+  waitingFor?: string;
+  thread?: string;
+  parent?: string;
+  canReceive?: boolean;
+  can_receive?: boolean;
+  activityText?: string;
+  activityKind?: Activity['kind'];
+  activityIcon?: string;
+  activityError?: boolean;
+  permission?: PermissionRequestInfo;
+}
+
+export interface FactoryApiInboxItem {
+  id: string;
+  kind: FactoryInboxKind;
+  title: string;
+  context: string;
+  options: unknown; // string[] | FactoryInboxOption[] | Record<string, string>
+  reco?: string | null;
+  project: string;
+  from?: string | null;
+  thread?: string;
+  at?: number;
+}
+
+export interface FactoryOfficeResponse {
+  builtAt?: number;
+  machine?: {
+    id?: string;
+    label?: string;
+  };
+  products?: Record<string, { name?: string }>;
+  projects?: Array<{ id?: string; name?: string; product?: string; path?: string }>;
+  agents?: FactoryApiAgent[];
+  tokens?: { today?: number };
+  provColors?: Record<string, string>;
+  relayConfigured?: boolean;
+  inbox?: FactoryApiInboxItem[];
+}
+
+export function normalizeInboxOptions(
+  rawOptions: unknown,
+  reco?: string | null,
+): FactoryInboxOption[] {
+  let list: FactoryInboxOption[] = [];
+  if (Array.isArray(rawOptions)) {
+    list = rawOptions.map((opt, i) => {
+      if (typeof opt === 'string') {
+        return { key: String(i), label: opt };
+      } else if (opt && typeof opt === 'object') {
+        const o = opt as { key?: string; label?: string };
+        const k = o.key !== undefined ? String(o.key) : String(i);
+        const l = o.label !== undefined ? String(o.label) : String(o.key ?? i);
+        return { key: k, label: l };
+      }
+      return { key: String(i), label: String(opt) };
+    });
+  } else if (rawOptions && typeof rawOptions === 'object') {
+    list = Object.entries(rawOptions as Record<string, string>).map(([key, label]) => ({
+      key,
+      label: typeof label === 'string' ? label : String(label),
+    }));
+  }
+
+  // Sort recommended first
+  list.sort((a, b) => {
+    const aReco = Boolean(
+      (reco && (a.key === reco || a.label.includes(reco))) ||
+      a.label.includes('(Recommended)')
+    );
+    const bReco = Boolean(
+      (reco && (b.key === reco || b.label.includes(reco))) ||
+      b.label.includes('(Recommended)')
+    );
+    if (aReco && !bReco) return -1;
+    if (!aReco && bReco) return 1;
+    return 0;
+  });
+
+  return list;
+}
+
+export function mapFactoryDataToSnapshot(
+  data: FactoryOfficeResponse,
+  prevSnapshot?: OfficeSnapshot | null,
+  now = Date.now(),
+): { snapshot: OfficeSnapshot; feedItems: FeedItem[]; notices: Notice[] } {
+  const feedItems: FeedItem[] = [];
+  const notices: Notice[] = [];
+  let feedSeq = 0;
+
+  // 1. Rooms
+  const existingRooms = new Map<string, RoomInfo>();
+  if (prevSnapshot?.rooms) {
+    for (const r of prevSnapshot.rooms) {
+      existingRooms.set(r.id, r);
+    }
+  }
+
+  const roomMap = new Map<string, RoomInfo>();
+  if (prevSnapshot?.rooms) {
+    for (const r of prevSnapshot.rooms) {
+      roomMap.set(r.id, r);
+    }
+  }
+
+  const getOrCreateRoom = (product?: string, project?: string): RoomInfo => {
+    const prod = product?.trim() || 'project';
+    const proj = project?.trim();
+    const name = proj ? `${prod} / ${proj}` : `${prod} / (no project)`;
+
+    const matched = FACTORY_PROJECTS.find(
+      (p) => p.name.toLowerCase() === name.toLowerCase() || (proj && p.projectName.toLowerCase() === proj.toLowerCase()),
+    );
+    const id = matched ? matched.id : `factory:${prod}/${proj ? proj.toLowerCase().replace(/\s+/g, '-') : '_default'}`;
+    const path = matched ? matched.path : `~/code/${prod}/${proj ? proj.toLowerCase().replace(/\s+/g, '-') : ''}`;
+
+    if (roomMap.has(id)) return roomMap.get(id)!;
+    if (existingRooms.has(id)) {
+      const existing = existingRooms.get(id)!;
+      roomMap.set(id, existing);
+      return existing;
+    }
+
+    const takenSlots = new Set<number>([
+      ...Array.from(existingRooms.values()).map((r) => r.slot),
+      ...Array.from(roomMap.values()).map((r) => r.slot),
+    ]);
+    let slot = matched?.slot;
+    if (slot === undefined || takenSlots.has(slot)) {
+      let nextSlot = 0;
+      while (takenSlots.has(nextSlot)) nextSlot++;
+      slot = nextSlot;
+    }
+
+    const room: RoomInfo = {
+      id,
+      name,
+      path,
+      slot,
+      seed: hash32(id),
+      createdAt: now,
+    };
+    roomMap.set(id, room);
+    return room;
+  };
+
+  if (data.projects) {
+    for (const p of data.projects) {
+      getOrCreateRoom(p.product, p.name);
+    }
+  }
+  if (data.agents) {
+    for (const a of data.agents) {
+      getOrCreateRoom(a.product, a.project);
+    }
+  }
+
+  // 2. Agents (agents in done leave)
+  const activeRows = (data.agents ?? []).filter((r) => r.state !== 'done');
+  const agents: AgentInfo[] = [];
+
+  for (const row of activeRows) {
+    const room = getOrCreateRoom(row.product, row.project);
+    const isSub = Boolean(row.parent && row.parent !== row.hc);
+    const parentId = isSub ? (row.parent!.startsWith('factory:agent:') ? row.parent! : `factory:agent:${row.parent}`) : undefined;
+    const agentId = `factory:agent:${row.hc}`;
+    const prevAgent = prevSnapshot?.agents.find((a) => a.id === agentId);
+
+    // Status
+    let status: AgentInfo['status'] = 'working';
+    if (row.state === 'waiting') status = 'waiting';
+    else if (row.state === 'stalled' || row.state === 'quota') status = 'idle';
+    else if (row.state === 'running' || row.state === 'failed') status = 'working';
+    else if (row.state === 'unknown') status = 'idle';
+
+    // Activity
+    const actText = row.activityText || row.t3Status || row.task || (
+      status === 'waiting' ? (row.waiting_for || row.waitingFor || 'Waiting for user input')
+      : row.state === 'quota' ? 'Hit quota limit'
+      : row.state === 'stalled' ? 'Stalled'
+      : 'Working on task'
+    );
+    const actKind: Activity['kind'] = row.activityKind || (
+      status === 'waiting' ? 'ask'
+      : (row.state === 'quota' || row.state === 'stalled') ? 'wait'
+      : 'edit'
+    );
+    const actIcon = row.activityIcon || (
+      status === 'waiting' ? '✋'
+      : row.state === 'quota' ? '☕'
+      : row.state === 'stalled' ? '💤'
+      : row.state === 'failed' ? '⚠️'
+      : '✏️'
+    );
+
+    const activityAt = row.since ?? row.started_at ?? (prevAgent?.activity?.at ?? now);
+    const activity: Activity = {
+      id: `act-${hash32(row.hc + ':' + actText)}`,
+      kind: actKind,
+      icon: actIcon,
+      text: actText,
+      at: activityAt,
+      error: row.activityError ?? (row.state === 'failed'),
+    };
+
+    let recent = prevAgent?.recent ? [...prevAgent.recent] : [];
+    if (!recent.some((a) => a.text === activity.text && a.kind === activity.kind)) {
+      recent = [...recent, activity].slice(-30);
+    }
+    if (recent.length === 0) {
+      recent = [activity];
+    }
+
+    const tasks: TaskItem[] = [
+      { id: '1', title: row.title || row.task || row.hc, status: status === 'idle' ? 'completed' : 'in_progress' },
+    ];
+
+    const stats: AgentStats = prevAgent?.stats ?? {
+      toolCalls: 12 + (hash32(row.hc + ':calls') % 40),
+      tokensIn: 80_000 + (hash32(row.hc + ':tin') % 300_000),
+      tokensOut: 2_000 + (hash32(row.hc + ':tout') % 20_000),
+      linesAdded: 45 + (hash32(row.hc + ':lines') % 120),
+      linesRemoved: 10 + (hash32(row.hc + ':rem') % 40),
+      subagents: isSub ? 0 : 1,
+    };
+
+    let permission = row.permission;
+    if (!permission && status === 'waiting') {
+      const waitReason = row.waiting_for || row.waitingFor || 'Waiting for user confirmation';
+      permission = {
+        id: `perm-${row.hc}`,
+        tool: 'Bash',
+        title: waitReason,
+        text: waitReason,
+        icon: '✋',
+        createdAt: (row.since ?? now) - 180_000,
+        expiresAt: now + 600_000,
+      };
+    }
+
+    const provStr = row.provider ? (row.provider.startsWith('.') ? row.provider : `.${row.provider.toLowerCase()}`) : '.claude';
+    const canRecv = row.canReceive ?? row.can_receive ?? true;
+
+    const agent: AgentInfo = {
+      id: agentId,
+      kind: isSub ? 'sub' : 'main',
+      parentId,
+      roomId: room.id,
+      name: row.hc,
+      look: hash32(row.hc) % 2 === 0 ? 'm' : 'f',
+      role: isSub ? 'Subagent' : 'Main agent',
+      title: row.title || row.task || row.hc,
+      sessionId: `factory:sess:${row.hc}`,
+      account: provStr,
+      status,
+      waitingFor: row.waiting_for || row.waitingFor || (status === 'waiting' ? 'Waiting for owner decision' : undefined),
+      permission,
+      activity,
+      recent,
+      tasks,
+      model: row.model,
+      gitBranch: row.branch,
+      startedAt: row.since ?? row.started_at ?? (prevAgent?.startedAt ?? now),
+      lastEventAt: now,
+      statusSince: prevAgent && prevAgent.status === status ? prevAgent.statusSince : now,
+      stats,
+      seed: hash32(row.hc),
+      background: isSub,
+      canReceive: canRecv,
+      canMessage: canRecv,
+      thread: row.thread ?? row.hc,
+    };
+
+    agents.push(agent);
+  }
+
+  // 3. Accounts: one per provider present
+  const provMap = new Map<string, { color?: string; noQuota: boolean; sessions: number }>();
+  for (const row of (data.agents ?? [])) {
+    const p = (row.provider ?? 'claude').replace(/^\./, '').toLowerCase();
+    const entry = provMap.get(p) ?? { noQuota: false, sessions: 0 };
+    if (row.state === 'quota') entry.noQuota = true;
+    provMap.set(p, entry);
+  }
+  for (const a of agents) {
+    if (a.kind === 'main') {
+      const p = a.account.replace(/^\./, '').toLowerCase();
+      const entry = provMap.get(p);
+      if (entry) entry.sessions++;
+    }
+  }
+
+  if (provMap.size === 0) {
+    provMap.set('claude', { noQuota: false, sessions: 0 });
+    provMap.set('antigravity', { noQuota: false, sessions: 0 });
+    provMap.set('opencode', { noQuota: false, sessions: 0 });
+  }
+
+  const accounts: AccountInfo[] = [];
+  for (const [p, meta] of provMap.entries()) {
+    const provName = p === 'claude' ? 'Claude'
+      : p === 'antigravity' ? 'Antigravity'
+      : p === 'opencode' ? 'OpenCode'
+      : p === 'codex' ? 'Codex'
+      : (p.charAt(0).toUpperCase() + p.slice(1));
+    const provColor = data.provColors?.[p] || (
+      p === 'claude' ? '#f08a3c'
+      : p === 'antigravity' ? '#4aa8e8'
+      : p === 'opencode' ? '#a77bf3'
+      : p === 'codex' ? '#10a37f'
+      : '#888888'
+    );
+    const short = p === 'claude' ? 'C'
+      : p === 'antigravity' ? 'AG'
+      : p === 'opencode' ? 'OC'
+      : p === 'codex' ? 'X'
+      : p.slice(0, 2).toUpperCase();
+
+    const usage: AccountUsage = {
+      noQuota: meta.noQuota,
+      source: 'statusline',
+      fetchedAt: now,
+    };
+
+    accounts.push({
+      id: `.${p}`,
+      short,
+      name: provName,
+      plan: 'Pro',
+      color: provColor,
+      configDir: `~/.${p}`,
+      sessions: meta.sessions,
+      tokensToday: data.tokens?.today,
+      usage,
+      usageStatus: 'ok',
+    });
+  }
+
+  // 4. Inbox
+  const inbox: FactoryInboxItem[] = (data.inbox ?? []).map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    title: item.title,
+    context: item.context,
+    options: normalizeInboxOptions(item.options, item.reco),
+    project: item.project,
+    from: item.from ?? null,
+    at: item.at ?? now,
+  }));
+
+  // 5. Feed derived from state changes
+  if (prevSnapshot) {
+    const currentHcs = new Set(activeRows.map((r) => r.hc));
+    for (const prevA of prevSnapshot.agents) {
+      if (!currentHcs.has(prevA.name)) {
+        const room = prevSnapshot.rooms.find((r) => r.id === prevA.roomId);
+        feedItems.push({
+          id: `feed-${now}-${++feedSeq}`,
+          agentId: prevA.id,
+          roomId: prevA.roomId,
+          agentName: prevA.name,
+          roomName: room?.name ?? '',
+          account: prevA.account,
+          activity: {
+            id: `act-${now}-${++feedSeq}`,
+            kind: 'done',
+            icon: '🏁',
+            text: `${prevA.name} finished`,
+            at: now,
+          },
+        });
+      }
+    }
+    for (const a of agents) {
+      if (a.status === 'waiting') {
+        const prevA = prevSnapshot.agents.find((prev) => prev.id === a.id);
+        if (!prevA || prevA.status !== 'waiting') {
+          const room = roomMap.get(a.roomId);
+          feedItems.push({
+            id: `feed-${now}-${++feedSeq}`,
+            agentId: a.id,
+            roomId: a.roomId,
+            agentName: a.name,
+            roomName: room?.name ?? '',
+            account: a.account,
+            activity: {
+              id: `act-${now}-${++feedSeq}`,
+              kind: 'ask',
+              icon: '✋',
+              text: `${a.name} is waiting on you`,
+              at: now,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  const rooms = Array.from(roomMap.values());
+
+  const snapshot: OfficeSnapshot = {
+    rev: prevSnapshot ? prevSnapshot.rev + 1 : 0,
+    serverTime: data.builtAt ?? now,
+    rooms,
+    agents,
+    accounts,
+    inbox,
+    meta: {
+      demo: Boolean(data.machine?.id?.includes('demo') || data.machine?.label?.includes('demo')),
+      sources: [],
+      startedAt: prevSnapshot?.meta?.startedAt ?? now,
+      version: 'factory',
+      buildingName: data.machine?.label,
+    },
+  };
+
+  return { snapshot, feedItems, notices };
+}
+
+export function buildInitialFactoryOfficeResponse(): FactoryOfficeResponse {
+  const agents: FactoryApiAgent[] = AGENT_SPECS.map((spec) => {
+    const isSub = spec.kind === 'sub';
+    const proj = FACTORY_PROJECTS[spec.roomIndex];
+    return {
+      hc: spec.handle,
+      provider: spec.account.replace(/^\./, ''),
+      model: spec.model,
+      product: proj.product,
+      project: proj.projectName,
+      state: spec.factoryState,
+      branch: spec.gitBranch,
+      title: spec.title,
+      waiting_for: spec.waitingFor,
+      parent: isSub && spec.parentHandle ? spec.parentHandle : undefined,
+      thread: `factory:thread:${spec.handle}`,
+      canReceive: true,
+      activityText: spec.activityText,
+      activityKind: spec.activityKind,
+      activityIcon: spec.activityIcon,
+      activityError: spec.activityError,
+      permission: spec.permission ? {
+        id: spec.permission.id,
+        tool: spec.permission.tool,
+        title: spec.permission.title,
+        text: spec.permission.text,
+        icon: spec.permission.icon,
+        createdAt: Date.now() - 180_000,
+        expiresAt: Date.now() + 600_000,
+        questions: spec.permission.questionHeader && spec.permission.questionText && spec.permission.options
+          ? [{
+              index: 0,
+              header: spec.permission.questionHeader,
+              question: spec.permission.questionText,
+              options: spec.permission.options.map((label, index) => ({ index, label })),
+            }]
+          : undefined,
+      } : undefined,
+    };
+  });
+
+  const inbox: FactoryApiInboxItem[] = INITIAL_INBOX_SPECS.map((spec, i) => ({
+    id: spec.id,
+    kind: spec.kind,
+    title: spec.title,
+    context: spec.context,
+    options: spec.options.map((o) => ({ ...o })),
+    project: spec.project,
+    from: spec.from,
+    at: Date.now() - (180_000 + i * 60_000),
+  }));
+
+  return {
+    builtAt: Date.now(),
+    machine: { label: 'office-sim-1' },
+    tokens: { today: 480_000 },
+    agents,
+    inbox,
+  };
+}
+
 const TICK_ACTIVITIES: readonly {
   text: string;
   kind: Activity['kind'];
@@ -577,7 +1075,16 @@ export class FactorySimulator {
     this.startedAt = now;
     this.nextTickAt = now + 20_000 / this.speed;
 
-    // 1. Build the 9 rooms
+    // Build via shared mapping
+    const initial = buildInitialFactoryOfficeResponse();
+    const { snapshot } = mapFactoryDataToSnapshot(initial, null, now);
+    for (const r of snapshot.rooms) {
+      this.rooms.set(r.id, r);
+    }
+    for (const a of snapshot.agents) {
+      this.agents.set(a.id, a);
+    }
+    this.inbox = snapshot.inbox ? snapshot.inbox.map((i) => ({ ...i, options: i.options.map((o) => ({ ...o })) })) : [];
     for (const p of FACTORY_PROJECTS) {
       const room: RoomInfo = {
         id: p.id,
@@ -720,6 +1227,7 @@ export class FactorySimulator {
         sources: [],
         startedAt: this.startedAt,
         version: 'factory',
+        buildingName: 'office-sim-1',
       },
     };
   }

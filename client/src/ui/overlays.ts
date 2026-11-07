@@ -171,7 +171,9 @@ export class ConnectionBanner implements UiComponent {
     }
     setText(
       this.text,
-      store.snapshot
+      store.factory
+        ? 'Factory data is unavailable'
+        : store.snapshot
         ? i18n('Sem conexão com o servidor do Habblaud há algum tempo. O escritório mostra o último estado conhecido.')
         : i18n('O servidor do Habblaud não responde. Confira se ele está rodando (npm run dev ou npm start).'),
     );

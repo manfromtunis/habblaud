@@ -8,19 +8,21 @@ import { migrateLegacyKeys, safeLocalStorage } from './ui/prefs';
 migrateLegacyKeys(safeLocalStorage());
 
 const params = new URLSearchParams(location.search);
-const isMock = params.has('mock');
+const isFile = location.protocol === 'file:';
+const isMock = params.has('mock') || params.has('factory') || isFile;
 const isFactory =
   params.has('factory') ||
-  (!isMock && (
+  (!params.has('mock') && (
     typeof (window as unknown as { __FACTORY_DEFAULT__?: boolean }).__FACTORY_DEFAULT__ !== 'undefined' ||
     document.documentElement.dataset.mode === 'factory' ||
-    location.protocol === 'file:' ||
+    isFile ||
+    location.pathname.includes('/office') ||
     location.pathname.includes('proto-office') ||
     location.pathname.includes('factory-office')
   ));
 
 const store = new OfficeStore({
-  mock: isMock || isFactory,
+  mock: isMock,
   factory: isFactory,
   search: location.search,
 });

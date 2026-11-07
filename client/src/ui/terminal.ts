@@ -9,6 +9,7 @@
 // testado em ui/terminal.test.ts; a montagem usa só textContent (o markdown das respostas vem de ui/markdown.ts).
 // Sessão do Codex: selo "Codex" no cabeçalho e um spinner neutro no rodapé (o ✻ é do Claude Code).
 import type { AgentInfo, Provider, RecentSession, TerminalEntry, TerminalInit } from '../../../shared/types';
+import { factoryApiUrl } from '../net/store';
 import { MessageComposer } from './composer';
 import type { UiComponent, UiContext } from './context';
 import { copyText, h, iconButton, prefersReducedMotion, setAttr, setHidden, setText, setTitle, setVariant } from './dom';
@@ -833,7 +834,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     if (live) this.last = live;
     const a = this.last;
     const name = a?.name ?? i18n('Agente');
-    setText(this.kindEl, 'terminal');
+    setText(this.kindEl, this.ctx.store.factory ? 'thread' : 'terminal');
     setHidden(this.accEl, true);
     setText(this.nameEl, name);
     setTitle(this.nameEl, '');
@@ -890,11 +891,50 @@ export class TerminalPanel implements UiComponent, TerminalControl {
 
   // ---------------------------------------------------------------- stream
 
+  private factoryPollTimer: ReturnType<typeof setInterval> | null = null;
+
   private connect(): void {
     this.disconnect();
     const id = this.id;
     if (id === null) return;
     this.conn = 'connecting';
+
+    if (this.ctx.store.factory && !this.session) {
+      const a = this.ctx.agent(id);
+      const thread = a?.thread ?? (a ? a.name : id);
+      const fetchThread = async () => {
+        try {
+          const url = factoryApiUrl(`api/threads/${encodeURIComponent(thread)}/messages?limit=40`);
+          const res = await fetch(url);
+          if (!res.ok) {
+            this.conn = 'failed';
+            this.renderState();
+            return;
+          }
+          const msgs = (await res.json()) as Array<{ role: 'user' | 'assistant'; text: string; at: number }>;
+          const entries: TerminalEntry[] = (Array.isArray(msgs) ? msgs : []).map((m, i) => ({
+            id: `msg-${i}-${m.at}`,
+            kind: m.role === 'user' ? 'user' : 'assistant',
+            text: m.text,
+            at: m.at,
+          }));
+          this.onInit({ agentId: id, entries, truncated: false });
+          this.conn = 'open';
+          this.renderState();
+        } catch {
+          this.conn = 'failed';
+          this.renderState();
+        }
+      };
+
+      void fetchThread();
+      this.factoryPollTimer = setInterval(() => {
+        if (this.id === id) void fetchThread();
+      }, 5_000);
+      this.renderState();
+      return;
+    }
+
     let es: EventSource;
     try {
       es = new EventSource(this.session ? sessionTerminalUrl(this.session.account, this.session.sessionId) : terminalUrl(id));
@@ -937,6 +977,10 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private disconnect(): void {
     this.source?.close();
     this.source = null;
+    if (this.factoryPollTimer) {
+      clearInterval(this.factoryPollTimer);
+      this.factoryPollTimer = null;
+    }
   }
 
   private onInit(data: TerminalInit): void {

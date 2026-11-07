@@ -7,8 +7,16 @@
 import type { AppearanceParts } from '../../../shared/appearance';
 import type { Activity, AgentDetail, AgentInfo, FactoryInboxItem, FeedItem, Notice, OfficeSnapshot, OutboxMessage, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
 import { DemoSimulator } from '../../../shared/demo/simulator';
-import { FactorySimulator } from '../../../shared/demo/factory';
+import { FactorySimulator, mapFactoryDataToSnapshot, type FactoryOfficeResponse } from '../../../shared/demo/factory';
 import { i18n } from '../../../shared/i18n';
+
+export function factoryApiUrl(path: string, search: string = (typeof location !== 'undefined' ? location.search : '')): string {
+  const params = new URLSearchParams(search);
+  const k = params.get('k');
+  if (!k) return path;
+  const sep = path.includes('?') ? '&' : '?';
+  return `${path}${sep}k=${encodeURIComponent(k)}`;
+}
 
 export type ConnectionState = 'connecting' | 'open' | 'closed' | 'mock';
 
@@ -111,10 +119,19 @@ export class OfficeStore {
   private replay = false;
   private live: { snap: OfficeSnapshot; at: number } | null = null;
 
+  private factoryLiveTimer: ReturnType<typeof setInterval> | null = null;
+  private focusHandler: (() => void) | null = null;
+
   constructor(opts: StoreOptions = {}) {
     const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
-    this.factory = !!opts.factory || new URLSearchParams(search).has('factory');
-    this.mock = !!opts.mock || this.factory;
+    const params = new URLSearchParams(search);
+    this.factory = !!opts.factory || params.has('factory');
+    if (opts.mock !== undefined) {
+      this.mock = opts.mock;
+    } else {
+      const isFile = typeof location !== 'undefined' && location.protocol === 'file:';
+      this.mock = params.has('mock') || (this.factory ? (params.has('factory') || isFile) : false);
+    }
     this.search = search;
     this.openStream = opts.eventSource ?? ((url) => new EventSource(url));
     // Rede de volta (Wi-Fi, VPN): não espera o próximo intervalo para religar.
@@ -135,6 +152,7 @@ export class OfficeStore {
   connect(): void {
     this.stopped = false;
     if (this.mock) return this.startMock();
+    if (this.factory) return this.startFactoryLive();
     this.startSSE();
   }
 
@@ -144,11 +162,21 @@ export class OfficeStore {
     this.closeSource();
     if (this.mockTimer) clearInterval(this.mockTimer);
     this.mockTimer = null;
+    if (this.factoryLiveTimer) clearInterval(this.factoryLiveTimer);
+    this.factoryLiveTimer = null;
+    if (this.focusHandler && typeof window !== 'undefined') {
+      window.removeEventListener('focus', this.focusHandler);
+      this.focusHandler = null;
+    }
   }
 
   /** Reconecta imediatamente (botão "Tentar agora"), sem esperar o próximo intervalo. */
   reconnectNow(): void {
     if (this.mock) return;
+    if (this.factory) {
+      void this.pollFactoryLive();
+      return;
+    }
     this.clearRetry();
     this.closeSource();
     this.stopped = false;
@@ -172,9 +200,9 @@ export class OfficeStore {
     return (this.snapshot?.agents ?? []).filter((a) => a.roomId === roomId);
   }
 
-  /** Histórico longo de um agente (servidor). No modo mock e no timelapse devolve o `recent`. */
+  /** Histórico longo de um agente (servidor). No modo mock, timelapse ou factory devolve o `recent`. */
   async agentHistory(id: string): Promise<Activity[]> {
-    if (this.mock || this.replay) return this.agent(id)?.recent ?? [];
+    if (this.mock || this.replay || this.factory) return this.agent(id)?.recent ?? [];
     const res = await fetch(`/api/agents/${encodeURIComponent(id)}`);
     if (!res.ok) return this.agent(id)?.recent ?? [];
     const detail = (await res.json()) as AgentDetail;
@@ -183,7 +211,7 @@ export class OfficeStore {
 
   /** Liga/desliga os agentes de demonstração no servidor. */
   async setDemo(enabled: boolean): Promise<boolean> {
-    if (this.mock) return true;
+    if (this.mock || this.factory) return true;
     const res = await fetch('/api/demo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -194,7 +222,7 @@ export class OfficeStore {
 
   /** "Verificar agora": pede ao servidor uma consulta ao GitHub (o resultado chega no snapshot). */
   async checkUpdates(): Promise<boolean> {
-    if (this.mock) return false;
+    if (this.mock || this.factory) return false;
     const res = await fetch('/api/updates/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     return res.ok;
   }
@@ -282,11 +310,46 @@ export class OfficeStore {
   /**
    * Responde um item da caixa de entrada da fábrica (modo fábrica).
    */
-  async answerInbox(id: string, choiceKey: string, note?: string): Promise<boolean> {
+  async answerInbox(id: string, choiceKey: string, note?: string): Promise<boolean | { ok: boolean; error?: string }> {
     if (this.mockSim && 'answerInbox' in this.mockSim) {
       const ok = (this.mockSim as FactorySimulator).answerInbox(id, choiceKey, note);
       if (ok) this.applySnapshot(this.mockSim.snapshot());
       return ok;
+    }
+    if (this.factory && !this.mock) {
+      const url = factoryApiUrl('api/answers', this.search);
+      const body = {
+        [id]: {
+          choice: choiceKey,
+          note: note ?? '',
+        },
+      };
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          let errMsg = `Failed to answer (error ${res.status})`;
+          try {
+            const j = (await res.json()) as { error?: string };
+            if (j && typeof j.error === 'string') errMsg = j.error;
+          } catch {}
+          return { ok: false, error: errMsg };
+        }
+        if (this.snapshot && this.snapshot.inbox) {
+          const remaining = this.snapshot.inbox.filter((it) => it.id !== id);
+          this.applySnapshot({
+            ...this.snapshot,
+            inbox: remaining,
+          });
+        }
+        void this.pollFactoryLive();
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
     }
     return false;
   }
@@ -335,6 +398,37 @@ export class OfficeStore {
    */
   async sendMessage(agentId: string, text: string): Promise<{ message: OutboxMessage } | { error: string }> {
     if (this.mock) return this.mockSend(agentId, text);
+    if (this.factory) {
+      const a = this.agent(agentId);
+      const thread = a?.thread ?? (a ? a.name : agentId);
+      const url = factoryApiUrl('api/messages', this.search);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ thread, text }),
+        });
+        let body: unknown;
+        try {
+          body = await res.json();
+        } catch {}
+        if (res.ok) {
+          const now = Date.now();
+          const msg: OutboxMessage = {
+            id: `msg-${now.toString(36)}`,
+            agentId,
+            status: 'delivered',
+            createdAt: now,
+            updatedAt: now,
+          };
+          return { message: msg };
+        }
+        const error = (body as { error?: unknown } | undefined)?.error;
+        return { error: typeof error === 'string' ? error : `Error ${res.status}` };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : 'Network error' };
+      }
+    }
     const res = await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId, text }) });
     let body: unknown;
     try {
@@ -519,6 +613,46 @@ export class OfficeStore {
 
   /** Simulador do modo ?mock=1 / ?factory=1 (também responde os pedidos de permissão fictícios). */
   private mockSim: DemoSimulator | FactorySimulator | null = null;
+
+  private startFactoryLive(): void {
+    if (this.factoryLiveTimer) return;
+    this.setConnection('connecting');
+    void this.pollFactoryLive();
+    this.factoryLiveTimer = setInterval(() => {
+      if (!this.stopped) void this.pollFactoryLive();
+    }, 10_000);
+
+    if (typeof window !== 'undefined') {
+      this.focusHandler = () => {
+        if (!this.stopped) void this.pollFactoryLive();
+      };
+      window.addEventListener('focus', this.focusHandler);
+    }
+  }
+
+  async pollFactoryLive(): Promise<boolean> {
+    try {
+      const url = factoryApiUrl('api/office', this.search);
+      const res = await fetch(url);
+      if (!res.ok) {
+        this.setConnection('closed');
+        return false;
+      }
+      const data = (await res.json()) as FactoryOfficeResponse;
+      const now = Date.now();
+      const { snapshot, feedItems, notices } = mapFactoryDataToSnapshot(data, this.snapshot, now);
+      this.applySnapshot(snapshot);
+      this.applyFeed(feedItems);
+      for (const n of notices) {
+        this.emit('notice', n);
+      }
+      this.setConnection('open');
+      return true;
+    } catch {
+      this.setConnection('closed');
+      return false;
+    }
+  }
 
   private startMock(): void {
     if (this.mockTimer) return;

@@ -202,11 +202,14 @@ export class TopBar implements UiComponent {
 
     this.usage.render();
     this.version.render();
+    if (store.factory) {
+      setHidden(this.version.el, true);
+    }
 
     this.sidebarBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('sidebar')));
     this.feedBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('feed')));
     this.timelapseBtn.setAttribute('aria-pressed', String(this.ctx.isTimelapseOpen()));
-    setHidden(this.timelapseBtn, store.mock);
+    setHidden(this.timelapseBtn, store.mock || store.factory);
   }
 
   private renderShells(n: number, now: number): void {

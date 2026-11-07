@@ -185,6 +185,8 @@ export interface AgentInfo {
    * e perguntou pela caixa de entrada há pouco. Ver POST /api/messages.
    */
   canMessage?: boolean;
+  canReceive?: boolean;
+  thread?: string;
 }
 
 export interface RoomInfo {
@@ -325,6 +327,7 @@ export interface AccountInfo {
    * - disabled: sem números (tap de statusline não instalado e nenhum cache do /usage).
    */
   usageStatus: 'ok' | 'stale' | 'disabled';
+  tokensToday?: number;
 }
 
 export type FactoryInboxKind = 'urgent' | 'action' | 'applied';
@@ -377,6 +380,8 @@ export interface OfficeSnapshot {
     messages?: boolean;
     /** Verificação de versão nova no GitHub (ausente nos testes e no timelapse). */
     updates?: UpdateStatus;
+    /** Nome do prédio na placa (modo fábrica: machine.label). */
+    buildingName?: string;
   };
 }
 

@@ -1,7 +1,7 @@
 // Grupo "Sons" das configurações: interruptor geral, volume mestre e categorias.
 import { SOUND_CATEGORIES, type SoundCategory, type SoundKind } from '../audio/scheduler';
 import type { UiContext } from './context';
-import { h, setAttr, setText } from './dom';
+import { h, setAttr, setHidden, setText } from './dom';
 import type { SoundControl } from './sound';
 import { i18n } from '../../../shared/i18n';
 
@@ -90,6 +90,10 @@ export class SoundSettingsGroup {
     for (const [cat, b] of this.chips) {
       setAttr(b, 'aria-pressed', String(p.sounds[cat]));
       b.disabled = !p.sound;
+    }
+    if (this.ctx.store.factory) {
+      const socialChip = this.chips.get('social');
+      if (socialChip) setHidden(socialChip, true);
     }
     this.details.classList.toggle('is-off', !p.sound);
   }

@@ -108,9 +108,10 @@ export class MessageComposer {
   render(agent: AgentInfo | undefined, key = agent?.id ?? ''): ComposerMode['kind'] {
     const store = this.ctx.store;
     const mode = composerMode(agent, {
-      enabled: store.mock || !!store.snapshot?.meta.messages,
-      local: store.mock || isLocalHostname(location.hostname),
+      enabled: store.mock || store.factory || !!store.snapshot?.meta.messages,
+      local: store.mock || store.factory || isLocalHostname(location.hostname),
       replaying: store.replaying,
+      factory: store.factory,
     });
     this.mode = mode;
     const ready = mode.kind === 'ready';

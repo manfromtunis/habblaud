@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { FactorySimulator, FACTORY_PROJECTS } from './factory';
+import {
+  FactorySimulator,
+  FACTORY_PROJECTS,
+  mapFactoryDataToSnapshot,
+  normalizeInboxOptions,
+  type FactoryOfficeResponse,
+} from './factory';
 
 describe('FactorySimulator', () => {
   it('snapshot has 9 rooms representing the 9 factory projects with product in names', () => {
@@ -201,5 +207,203 @@ describe('FactorySimulator', () => {
     const tickResult = sim.tick(start + 1_000);
     const feed = tickResult.feed.find((f) => f.activity?.text.includes('You answered e204: Seen'));
     expect(feed).toBeDefined();
+  });
+});
+
+describe('normalizeInboxOptions', () => {
+  it('handles options as string array with (Recommended) sorted first', () => {
+    const raw = ['Option B', 'Option A (Recommended)', 'Option C'];
+    const opts = normalizeInboxOptions(raw);
+    expect(opts).toHaveLength(3);
+    expect(opts[0].label).toBe('Option A (Recommended)');
+    expect(opts[0].key).toBe('1');
+    expect(opts[1].label).toBe('Option B');
+    expect(opts[2].label).toBe('Option C');
+  });
+
+  it('handles options as dictionary key -> label with reco parameter', () => {
+    const raw = {
+      opt1: 'First Choice',
+      opt2: 'Second Choice',
+      opt3: 'Third Choice',
+    };
+    const opts = normalizeInboxOptions(raw, 'opt2');
+    expect(opts).toHaveLength(3);
+    expect(opts[0].key).toBe('opt2');
+    expect(opts[0].label).toBe('Second Choice');
+  });
+
+  it('handles options as object array with key and label', () => {
+    const raw = [
+      { key: 'hold', label: 'Hold' },
+      { key: 'merge', label: 'Merge (Recommended)' },
+    ];
+    const opts = normalizeInboxOptions(raw);
+    expect(opts).toHaveLength(2);
+    expect(opts[0].key).toBe('merge');
+    expect(opts[1].key).toBe('hold');
+  });
+});
+
+describe('mapFactoryDataToSnapshot', () => {
+  it('maps live rows to OfficeSnapshot properly', () => {
+    const data: FactoryOfficeResponse = {
+      builtAt: 1714000000000,
+      machine: { id: 'm1', label: 'factory-prod-1' },
+      agents: [
+        {
+          hc: '1a3f',
+          provider: 'claude',
+          model: 'claude-sonnet-5-5',
+          product: 'bakchich',
+          project: 'New fee engine',
+          state: 'running',
+          task: 'Editing fee_calculator.py',
+          branch: 'feat/fee-engine',
+          canReceive: true,
+          thread: 'thread-1a3f',
+        },
+        {
+          hc: '2b07',
+          provider: 'claude',
+          model: 'claude-opus-5-5',
+          product: 'bakchich',
+          project: 'Support bot',
+          state: 'waiting',
+          waiting_for: 'Stripe signature check',
+          parent: '1a3f',
+          canReceive: false,
+          thread: 'thread-2b07',
+        },
+        {
+          hc: '1q03',
+          provider: 'opencode',
+          product: 'bakchich',
+          project: 'New fee engine',
+          state: 'quota',
+        },
+        {
+          hc: '9z99',
+          provider: 'claude',
+          product: 'bakchich',
+          project: 'New fee engine',
+          state: 'done', // Should be omitted!
+        },
+      ],
+      tokens: { today: 987654 },
+      inbox: [
+        {
+          id: 'i1',
+          kind: 'urgent',
+          title: 'Approve legacy signature',
+          context: 'Needs review',
+          options: { opt1: 'Reject', opt2: 'Accept (Recommended)' },
+          project: 'bakchich / Support bot',
+          from: '2b07',
+        },
+      ],
+    };
+
+    const { snapshot, feedItems } = mapFactoryDataToSnapshot(data, null, 1714000000000);
+
+    // 1. Building name from machine.label
+    expect(snapshot.meta.buildingName).toBe('factory-prod-1');
+
+    // 2. Agents in 'done' leave
+    expect(snapshot.agents).toHaveLength(3);
+    expect(snapshot.agents.some((a) => a.name === '9z99')).toBe(false);
+
+    // 3. Subagents check
+    const agent1a3f = snapshot.agents.find((a) => a.name === '1a3f')!;
+    const agent2b07 = snapshot.agents.find((a) => a.name === '2b07')!;
+    const agent1q03 = snapshot.agents.find((a) => a.name === '1q03')!;
+
+    expect(agent1a3f.kind).toBe('main');
+    expect(agent1a3f.status).toBe('working');
+    expect(agent1a3f.canReceive).toBe(true);
+    expect(agent1a3f.thread).toBe('thread-1a3f');
+
+    expect(agent2b07.kind).toBe('sub');
+    expect(agent2b07.parentId).toBe('factory:agent:1a3f');
+    expect(agent2b07.status).toBe('waiting');
+    expect(agent2b07.waitingFor).toBe('Stripe signature check');
+    expect(agent2b07.canReceive).toBe(false);
+
+    expect(agent1q03.status).toBe('idle');
+
+    // 4. Accounts: one per provider present & no quota flag
+    expect(snapshot.accounts.length).toBeGreaterThanOrEqual(2);
+    const claudeAcc = snapshot.accounts.find((a) => a.name === 'Claude')!;
+    const opencodeAcc = snapshot.accounts.find((a) => a.name === 'OpenCode')!;
+    expect(claudeAcc).toBeDefined();
+    expect(claudeAcc.usage?.noQuota).toBe(false);
+    expect(opencodeAcc).toBeDefined();
+    expect(opencodeAcc.usage?.noQuota).toBe(true); // 1q03 has state 'quota'
+    expect(claudeAcc.tokensToday).toBe(987654);
+
+    // 5. Rooms = projects
+    expect(snapshot.rooms.length).toBeGreaterThanOrEqual(2);
+    expect(snapshot.rooms.some((r) => r.name === 'bakchich / New fee engine')).toBe(true);
+    expect(snapshot.rooms.some((r) => r.name === 'bakchich / Support bot')).toBe(true);
+
+    // 6. Inbox options normalized
+    expect(snapshot.inbox).toHaveLength(1);
+    expect(snapshot.inbox![0].options[0].label).toContain('(Recommended)');
+  });
+
+  it('generates feed items for state changes across polls and preserves room slots', () => {
+    const prevData: FactoryOfficeResponse = {
+      agents: [
+        {
+          hc: '1a3f',
+          product: 'bakchich',
+          project: 'New fee engine',
+          state: 'running',
+        },
+        {
+          hc: '2b07',
+          product: 'bakchich',
+          project: 'Support bot',
+          state: 'running',
+        },
+      ],
+    };
+    const { snapshot: prevSnap } = mapFactoryDataToSnapshot(prevData, null, 10_000);
+    const room0Slot = prevSnap.rooms.find((r) => r.name === 'bakchich / New fee engine')!.slot;
+
+    // Next poll: 1a3f is done (leaves), 2b07 becomes waiting
+    const nextData: FactoryOfficeResponse = {
+      agents: [
+        {
+          hc: '1a3f',
+          product: 'bakchich',
+          project: 'New fee engine',
+          state: 'done',
+        },
+        {
+          hc: '2b07',
+          product: 'bakchich',
+          project: 'Support bot',
+          state: 'waiting',
+        },
+        {
+          hc: '3x10',
+          product: 'clip2earn',
+          project: 'Clip2Earn V2',
+          state: 'running',
+        },
+      ],
+    };
+    const { snapshot: nextSnap, feedItems } = mapFactoryDataToSnapshot(nextData, prevSnap, 20_000);
+
+    // Slot preserved
+    const nextRoom0 = nextSnap.rooms.find((r) => r.name === 'bakchich / New fee engine')!;
+    expect(nextRoom0.slot).toBe(room0Slot);
+
+    // Feeds generated
+    const finishedFeed = feedItems.find((f) => f.activity?.text.includes('1a3f finished'));
+    const waitingFeed = feedItems.find((f) => f.activity?.text.includes('2b07 is waiting on you'));
+    expect(finishedFeed).toBeDefined();
+    expect(waitingFeed).toBeDefined();
   });
 });

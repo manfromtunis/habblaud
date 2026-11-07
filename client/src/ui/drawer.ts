@@ -506,7 +506,11 @@ class AgentView {
     updateAvatar(this.avatar, a, 'lg');
     setStyleVar(this.avatar, '--acc', account?.color ?? '#8b98b3');
     setText(this.name, a.name);
-    this.character.render(a, !!live);
+    if (this.ctx.store.factory) {
+      setHidden(this.character.button, true);
+    } else {
+      this.character.render(a, !!live);
+    }
     setText(this.role, roleLabel(a));
     setVariant(this.role, 'ui-role--', a.kind);
     setText(this.title, a.title ?? '');
@@ -559,8 +563,13 @@ class AgentView {
     } else {
       this.agentInboxOpenItem = null;
       setHidden(this.agentInboxCard, true);
-      this.perm.render(live);
-      setHidden(this.alert, !waiting || this.perm.visible);
+      if (this.ctx.store.factory) {
+        setHidden(this.perm.el, true);
+        setHidden(this.alert, !waiting);
+      } else {
+        this.perm.render(live);
+        setHidden(this.alert, !waiting || this.perm.visible);
+      }
     }
     if (waiting) {
       const accName = account?.name ?? a.account;
@@ -610,7 +619,9 @@ class AgentView {
     setHidden(this.msgSec.el, this.composer.render(live, this.id) === 'off');
 
     // Vida social (personalidade, carteira, rodas): só de quem está no escritório.
-    if (live) this.social.render(a.id, now);
+    if (this.ctx.store.factory) {
+      setHidden(this.social.el, true);
+    } else if (live) this.social.render(a.id, now);
     else setHidden(this.social.el, true);
 
     // Tarefas.
@@ -681,7 +692,8 @@ class AgentView {
   }
 
   private renderTerminalButton(live: boolean, provider = providerOf(this.last)): void {
-    const available = !!this.ctx.store.snapshot?.meta.terminal;
+    const isFactory = this.ctx.store.factory;
+    const available = isFactory ? true : !!this.ctx.store.snapshot?.meta.terminal;
     const open = this.terminal.agentId === this.id;
     // aria-disabled (e não disabled): o botão continua focável e a dica do porquê aparece no hover.
     const enabled = open || (available && live);
@@ -689,18 +701,22 @@ class AgentView {
     this.termBtn.classList.toggle('is-disabled', !enabled);
     setAttr(this.termBtn, 'aria-pressed', String(open));
     this.termBtn.classList.toggle('is-on', open);
-    setText(this.termLabel, open ? i18n('Fechar terminal') : i18n('Abrir terminal'));
+    const openText = isFactory ? 'Open thread' : i18n('Abrir terminal');
+    const closeText = isFactory ? 'Close thread' : i18n('Fechar terminal');
+    setText(this.termLabel, open ? closeText : openText);
     setTitle(
       this.termBtn,
       open
-        ? i18n('Fechar o terminal (T)')
+        ? (isFactory ? 'Close thread (T)' : i18n('Fechar o terminal (T)'))
         : !available
           ? this.ctx.store.replaying
             ? i18n('Sem terminal no timelapse: a conversa é a de agora, não a do momento reproduzido.')
             : TERMINAL_UNAVAILABLE_HINT
           : !live
             ? i18n('O agente já saiu do escritório.')
-            : i18n`Ver a conversa desta sessão como no ${provider === 'codex' ? 'Codex' : i18n('terminal do Claude Code')}, ao vivo (T)`,
+            : isFactory
+              ? 'View this session thread (T)'
+              : i18n`Ver a conversa desta sessão como no ${provider === 'codex' ? 'Codex' : i18n('terminal do Claude Code')}, ao vivo (T)`,
     );
   }
 
@@ -1067,11 +1083,20 @@ class InboxItemView {
     this.renderOptions();
   }
 
-  save(choiceKey = this.selectedChoice): void {
+  async save(choiceKey = this.selectedChoice): Promise<void> {
     if (!this.item) return;
     const key = choiceKey || this.item.options[0]?.key || 'seen';
     const note = this.noteField.value.trim() || undefined;
-    this.ctx.store.answerInbox(this.item.id, key, note);
+    const res = await this.ctx.store.answerInbox(this.item.id, key, note);
+    if (res && typeof res === 'object' && !res.ok) {
+      setText(this.statusEl, res.error || i18n('Falha ao responder'));
+      return;
+    }
+    if (res === false) {
+      setText(this.statusEl, i18n('Falha ao responder'));
+      return;
+    }
+    setText(this.statusEl, '');
     this.ctx.select(null);
   }
 
