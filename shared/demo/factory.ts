@@ -25,7 +25,7 @@ import type { DemoOptions, DemoTickResult } from './simulator';
 
 export interface FactoryProject {
   id: string;
-  product: 'bakchich' | 'aurastack' | 'clip2earn' | 'factory' | 'kick-yt';
+  product: 'payapp' | 'shopkit' | 'cliphub' | 'factory' | 'clipper';
   projectName: string;
   name: string;
   path: string;
@@ -34,43 +34,43 @@ export interface FactoryProject {
 
 export const FACTORY_PROJECTS: readonly FactoryProject[] = [
   {
-    id: 'factory:bakchich/new-fee-engine',
-    product: 'bakchich',
+    id: 'factory:payapp/new-fee-engine',
+    product: 'payapp',
     projectName: 'New fee engine',
-    name: 'bakchich / New fee engine',
-    path: '~/code/bakchich-monorepo/fee-engine',
+    name: 'payapp / New fee engine',
+    path: '~/code/payapp-monorepo/fee-engine',
     slot: 0,
   },
   {
-    id: 'factory:bakchich/support-bot',
-    product: 'bakchich',
+    id: 'factory:payapp/support-bot',
+    product: 'payapp',
     projectName: 'Support bot',
-    name: 'bakchich / Support bot',
-    path: '~/code/bakchich-monorepo/support-bot',
+    name: 'payapp / Support bot',
+    path: '~/code/payapp-monorepo/support-bot',
     slot: 1,
   },
   {
-    id: 'factory:bakchich/black-friday-2026',
-    product: 'bakchich',
+    id: 'factory:payapp/black-friday-2026',
+    product: 'payapp',
     projectName: 'Black Friday 2026',
-    name: 'bakchich / Black Friday 2026',
-    path: '~/code/bakchich-monorepo/campaigns/bf26',
+    name: 'payapp / Black Friday 2026',
+    path: '~/code/payapp-monorepo/campaigns/bf26',
     slot: 2,
   },
   {
-    id: 'factory:aurastack/aurastack-store',
-    product: 'aurastack',
-    projectName: 'AuraStack store',
-    name: 'aurastack / AuraStack store',
-    path: '~/code/aurastack/storefront',
+    id: 'factory:shopkit/shopkit-store',
+    product: 'shopkit',
+    projectName: 'ShopKit store',
+    name: 'shopkit / ShopKit store',
+    path: '~/code/shopkit/storefront',
     slot: 3,
   },
   {
-    id: 'factory:clip2earn/clip2earn-v2',
-    product: 'clip2earn',
-    projectName: 'Clip2Earn V2',
-    name: 'clip2earn / Clip2Earn V2',
-    path: '~/code/clip2earn',
+    id: 'factory:cliphub/cliphub-v2',
+    product: 'cliphub',
+    projectName: 'ClipHub V2',
+    name: 'cliphub / ClipHub V2',
+    path: '~/code/cliphub',
     slot: 4,
   },
   {
@@ -90,19 +90,19 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
     slot: 6,
   },
   {
-    id: 'factory:kick-yt/kick-to-youtube',
-    product: 'kick-yt',
-    projectName: 'Kick to YouTube',
-    name: 'kick-yt / Kick to YouTube',
-    path: '~/code/kick-to-youtube',
+    id: 'factory:clipper/stream-clipper',
+    product: 'clipper',
+    projectName: 'Stream clipper',
+    name: 'clipper / Stream clipper',
+    path: '~/code/stream-clipper',
     slot: 7,
   },
   {
-    id: 'factory:bakchich/design-system',
-    product: 'bakchich',
+    id: 'factory:payapp/design-system',
+    product: 'payapp',
     projectName: 'Design system',
-    name: 'bakchich / Design system',
-    path: '~/code/bakchich-monorepo/design-system',
+    name: 'payapp / Design system',
+    path: '~/code/payapp-monorepo/design-system',
     slot: 8,
   },
 ];
@@ -135,7 +135,7 @@ interface AgentSpec {
 }
 
 const AGENT_SPECS: readonly AgentSpec[] = [
-  // Room 0: bakchich / New fee engine
+  // Room 0: payapp / New fee engine
   {
     handle: '1a3f',
     roomIndex: 0,
@@ -177,7 +177,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
     title: 'Fee tier benchmarks',
   },
 
-  // Room 1: bakchich / Support bot
+  // Room 1: payapp / Support bot
   {
     handle: '2b07',
     roomIndex: 1,
@@ -220,7 +220,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
     title: 'FAQ vector indexing',
   },
 
-  // Room 2: bakchich / Black Friday 2026
+  // Room 2: payapp / Black Friday 2026
   {
     handle: '2f18',
     roomIndex: 2,
@@ -248,7 +248,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
     title: 'Redis cluster cache warmup',
   },
 
-  // Room 3: aurastack / AuraStack store
+  // Room 3: shopkit / ShopKit store
   {
     handle: '2a14',
     roomIndex: 3,
@@ -260,7 +260,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
     activityIcon: '✏️',
     model: 'claude-opus-5-5',
     gitBranch: 'refactor/cart-store',
-    title: 'AuraStack cart overhaul',
+    title: 'ShopKit cart overhaul',
   },
   {
     handle: '3b55',
@@ -291,7 +291,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
     title: 'Checkout type resolution',
   },
 
-  // Room 4: clip2earn / Clip2Earn V2
+  // Room 4: cliphub / ClipHub V2
   {
     handle: '1f33',
     roomIndex: 4,
@@ -391,7 +391,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
     title: 'Linter check suite',
   },
 
-  // Room 7: kick-yt / Kick to YouTube
+  // Room 7: clipper / Stream clipper
   {
     handle: '2k89',
     roomIndex: 7,
@@ -419,7 +419,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
     title: 'Stream sync health checks',
   },
 
-  // Room 8: bakchich / Design system
+  // Room 8: payapp / Design system
   {
     handle: '2d91',
     roomIndex: 8,
@@ -456,21 +456,21 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
       { key: 'v2only', label: 'Reject v1, require v2 headers only' },
       { key: 'more_ctx', label: 'Request more context from agent' },
     ],
-    project: 'bakchich / Support bot',
+    project: 'payapp / Support bot',
     from: '2b07',
   },
   // 2. Urgent decision (no agent)
   {
     id: 'c102',
     kind: 'urgent',
-    title: 'Rotate staging API key for AuraStack',
+    title: 'Rotate staging API key for ShopKit',
     context:
       'Sentry reported an exposed secret in staging logs.\nImmediate key rotation will invalidate active preview sessions.\nChoose key rotation window.',
     options: [
       { key: 'rotate_now', label: 'Rotate immediately and invalidate sessions (Recommended)' },
       { key: 'schedule', label: 'Schedule rotation in 30 minutes' },
     ],
-    project: 'aurastack / AuraStack store',
+    project: 'shopkit / ShopKit store',
     from: null,
   },
   // 3. Action item with numbered steps from waiting agent 2e77
@@ -499,7 +499,7 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
       { key: 'run_now', label: 'Execute backfill during off-peak window (Recommended)' },
       { key: 'dry_run', label: 'Run dry-run simulation only' },
     ],
-    project: 'bakchich / New fee engine',
+    project: 'payapp / New fee engine',
     from: null,
   },
   // 5. Merge ask
@@ -513,7 +513,7 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
       { key: 'merge', label: 'Merge factory#70 into main (Recommended)' },
       { key: 'hold', label: 'Hold PR for manual review' },
     ],
-    project: 'bakchich / Support bot',
+    project: 'payapp / Support bot',
     from: null,
   },
   // 6. Applied item
@@ -527,7 +527,7 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
       { key: 'ack', label: 'Acknowledge summary (Recommended)' },
       { key: 'archive', label: 'Archive digest' },
     ],
-    project: 'bakchich / Support bot',
+    project: 'payapp / Support bot',
     from: null,
   },
   // 7. Applied item
@@ -555,7 +555,7 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
       { key: 'done', label: 'Confirm warmup (Recommended)' },
       { key: 'purge', label: 'Purge cache' },
     ],
-    project: 'bakchich / Black Friday 2026',
+    project: 'payapp / Black Friday 2026',
     from: null,
   },
 ];

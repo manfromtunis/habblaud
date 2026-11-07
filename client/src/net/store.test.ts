@@ -336,7 +336,7 @@ describe('OfficeStore: factory live mode', () => {
           title: 'Rotate key',
           context: 'Test context',
           options: [{ key: 'rotate_now', label: 'Rotate immediately' }],
-          project: 'aurastack',
+          project: 'shopkit',
           from: null,
           at: 10_000,
         },
@@ -372,6 +372,23 @@ describe('OfficeStore: factory live mode', () => {
 
     expect(store.snapshot?.answers?.['c102']).toBeDefined();
     expect(store.snapshot?.answers?.['c102'].choice).toBe('rotate_now');
+  });
+
+  it('answerInbox sends one POST when Save fires twice before the first returns', async () => {
+    const store = new OfficeStore({ factory: true, mock: false, search: '' });
+    (store as unknown as { setSnapshot(s: OfficeSnapshot): void }).setSnapshot({
+      rev: 1, serverTime: 0, rooms: [], agents: [], accounts: [],
+      inbox: [{ id: 'i1', kind: 'urgent', title: 't', context: '', options: [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }], project: 'p', from: null, at: 0 }],
+      meta: { demo: false, sources: [], startedAt: 0, version: 'factory' },
+    });
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const [first, second] = await Promise.all([store.answerInbox('i1', 'a'), store.answerInbox('i1', 'b')]);
+    expect(first).toEqual({ ok: true });
+    expect(second).toEqual({ ok: false, error: 'Already answered' });
+    const posts = fetchMock.mock.calls.filter((c) => String((c as unknown[])[0]).includes('api/answers'));
+    expect(posts).toHaveLength(1);
+    expect(await store.answerInbox('i1', 'b')).toEqual({ ok: false, error: 'Already answered' });
   });
 
   it('sendMessage posts to api/messages with JSON { thread, text }', async () => {

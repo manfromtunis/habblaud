@@ -51,13 +51,13 @@ export function createFakeFactoryServer(customFixtures = {}) {
     },
     products: {
       core: { name: 'Core Engine' },
-      aurastack: { name: 'AuraStack' },
+      shopkit: { name: 'ShopKit' },
       factory: { name: 'Software Factory' },
     },
     projects: [
       { id: 'factory:core/support-bot', product: 'core', name: 'Support bot' },
       { id: 'factory:core/ledger', product: 'core', name: 'Transaction ledger' },
-      { id: 'factory:aurastack/store', product: 'aurastack', name: 'AuraStack store' },
+      { id: 'factory:shopkit/store', product: 'shopkit', name: 'ShopKit store' },
     ],
     agents: [
       {

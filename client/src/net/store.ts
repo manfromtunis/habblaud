@@ -123,6 +123,8 @@ export class OfficeStore {
   private focusHandler: (() => void) | null = null;
   private factoryPolling = false;
   private pendingAnswers = new Map<string, { choice: string; note?: string; at: number }>();
+  /** Item ids with an answer POST in flight: a second Save (Ctrl+Enter repeat) must not post a second decision. */
+  private answering = new Set<string>();
 
   constructor(opts: StoreOptions = {}) {
     const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
@@ -323,6 +325,10 @@ export class OfficeStore {
       return ok;
     }
     if (this.factory && !this.mock) {
+      if (this.answering.has(id) || this.pendingAnswers.has(id) || this.snapshot?.answers?.[id]) {
+        return { ok: false, error: 'Already answered' };
+      }
+      this.answering.add(id);
       const url = factoryApiUrl('api/answers', this.search);
       const body = {
         [id]: {
@@ -357,6 +363,8 @@ export class OfficeStore {
         return { ok: true };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      } finally {
+        this.answering.delete(id);
       }
     }
     return false;

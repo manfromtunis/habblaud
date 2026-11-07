@@ -20,11 +20,11 @@ describe('FactorySimulator', () => {
       'New fee engine',
       'Support bot',
       'Black Friday 2026',
-      'Clip2Earn V2',
+      'ClipHub V2',
       'Release manager',
       'Software factory',
-      'AuraStack store',
-      'Kick to YouTube',
+      'ShopKit store',
+      'Stream clipper',
       'Design system',
     ];
 
@@ -33,8 +33,8 @@ describe('FactorySimulator', () => {
       expect(room, `Room for project "${proj}" should exist`).toBeDefined();
     }
 
-    // Verify room names carry the product (bakchich, aurastack, clip2earn, factory, kick-yt)
-    const expectedProducts = ['bakchich', 'aurastack', 'clip2earn', 'factory', 'kick-yt'];
+    // Verify room names carry the product (payapp, shopkit, cliphub, factory, clipper)
+    const expectedProducts = ['payapp', 'shopkit', 'cliphub', 'factory', 'clipper'];
     for (const prod of expectedProducts) {
       const hasProduct = snap.rooms.some((r) => r.name.toLowerCase().includes(prod));
       expect(hasProduct, `At least one room name should carry product "${prod}"`).toBe(true);

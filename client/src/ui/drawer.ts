@@ -549,8 +549,9 @@ class AgentView {
     // Alerta & Inbox da fábrica.
     const waiting = a.status === 'waiting' && !!live;
     const answers = this.ctx.store.snapshot?.answers ?? {};
+    // Not only 'waiting': an agent blocked on `factory answers --wait` is in a running tool call.
     const inboxItem =
-      waiting && this.ctx.store.factory
+      !!live && this.ctx.store.factory
         ? this.ctx.store.snapshot?.inbox?.find((it) => (it.from === a.name || it.from === a.id.replace('factory:agent:', '')) && !answers[it.id])
         : undefined;
 
@@ -784,10 +785,12 @@ class AgentView {
     }
     if (this.ctx.store.snapshot?.answers?.[this.agentInboxOpenItem.id]) return; // already answered
     const note = this.agentInboxNote.value.trim() || undefined;
+    const itemId = this.agentInboxOpenItem.id;
     this.agentInboxSave.disabled = true;
     setText(this.agentInboxStatus, '');
     try {
-      const res = await this.ctx.store.answerInbox(this.agentInboxOpenItem.id, key, note);
+      const res = await this.ctx.store.answerInbox(itemId, key, note);
+      if (this.agentInboxOpenItem?.id !== itemId) return; // the card moved on to another item
       if (res && typeof res === 'object' && !res.ok) {
         setText(this.agentInboxStatus, res.error || i18n('Falha ao responder'));
         return;
@@ -1134,10 +1137,12 @@ class InboxItemView {
     }
     const key = choiceKey;
     const note = this.noteField.value.trim() || undefined;
+    const itemId = this.item.id;
     this.saveBtn.disabled = true;
     this.setStatus('');
     try {
-      const res = await this.ctx.store.answerInbox(this.item.id, key, note);
+      const res = await this.ctx.store.answerInbox(itemId, key, note);
+      if (this.item?.id !== itemId) return; // the panel now shows another item
       if (res && typeof res === 'object' && !res.ok) {
         this.setStatus(res.error || i18n('Falha ao responder'));
         return;
