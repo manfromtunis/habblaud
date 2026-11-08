@@ -744,11 +744,10 @@ export function mapFactoryDataToSnapshot(
   }
 
   // 1. Rooms: key by product + project id, display name from projects[].name
+  // Every room ever seen, factory-wide, so a room keeps its slot whichever building is shown.
   const roomMap = new Map<string, RoomInfo>();
-  if (prevSnapshot?.rooms && !currentMachine) {
-    for (const r of prevSnapshot.rooms) {
-      roomMap.set(r.id, r);
-    }
+  for (const r of prevSnapshot?.knownRooms ?? prevSnapshot?.rooms ?? []) {
+    roomMap.set(r.id, r);
   }
 
   const projectsById = new Map<string, { id: string; product?: string; name?: string; path?: string }>();
@@ -812,10 +811,8 @@ export function mapFactoryDataToSnapshot(
     ? allActive
     : currentMachine.online ? allActive.filter((r) => r.machine === currentMachine.id) : [];
 
-  if (!currentMachine) {
-    for (const p of data.projects ?? []) getOrCreateRoom(p.product, p.id);
-  }
-  for (const a of activeRows) getOrCreateRoom(a.product, a.project);
+  for (const p of data.projects ?? []) getOrCreateRoom(p.product, p.id);
+  const shownRoomIds = new Set(activeRows.map((a) => getOrCreateRoom(a.product, a.project).id));
   const agents: AgentInfo[] = [];
 
   for (const row of activeRows) {
@@ -1068,7 +1065,8 @@ export function mapFactoryDataToSnapshot(
     }
   }
 
-  const rooms = Array.from(roomMap.values());
+  const knownRooms = Array.from(roomMap.values());
+  const rooms = currentMachine ? knownRooms.filter((r) => shownRoomIds.has(r.id)) : knownRooms;
 
   const snapshot: OfficeSnapshot = {
     rev: prevSnapshot ? prevSnapshot.rev + 1 : 0,
@@ -1080,6 +1078,7 @@ export function mapFactoryDataToSnapshot(
     answers,
     machines: machines.length > 0 ? machines : undefined,
     feedAgents,
+    knownRooms,
     meta: {
       demo: Boolean(data.machine?.id?.includes('demo') || data.machine?.label?.includes('demo')),
       sources: [],

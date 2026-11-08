@@ -577,6 +577,26 @@ describe('mapFactoryDataToSnapshot', () => {
       expect(snapshot.rooms[0].path).toBe('~/code/core/my-project-x');
     });
 
+    it('rooms keep their slot across building switches and emptied rooms', () => {
+      const data: FactoryOfficeResponse = {
+        ...baseData,
+        projects: [...baseData.projects!, { id: 'proj-c', product: 'core', name: 'C' }],
+        agents: [
+          { hc: 'a1', provider: 'claude', product: 'core', project: 'proj-fee', state: 'running', machine: 'vps' },
+          { hc: 'b1', provider: 'claude', product: 'core', project: 'proj-supp', state: 'running', machine: 'vps' },
+          { hc: 'c1', provider: 'claude', product: 'core', project: 'proj-c', state: 'running', machine: 'laptop' },
+        ],
+      };
+      const slots = (snap: { rooms: { name: string; slot: number }[] }) => Object.fromEntries(snap.rooms.map((r) => [r.name, r.slot]));
+      const { snapshot: all0 } = mapFactoryDataToSnapshot(data, null, 1_000, false, null);
+      const { snapshot: vps1 } = mapFactoryDataToSnapshot(data, all0, 2_000, false, 'vps');
+      const emptied = { ...data, agents: data.agents!.map((a) => (a.hc === 'a1' ? { ...a, state: 'done' } : a)) };
+      const { snapshot: vps2 } = mapFactoryDataToSnapshot(emptied, vps1, 3_000, false, 'vps');
+      const { snapshot: all3 } = mapFactoryDataToSnapshot(data, vps2, 4_000, false, null);
+      expect(slots(vps2)['Support service']).toBe(slots(all0)['Support service']);
+      expect(slots(all3)).toEqual(slots(all0));
+    });
+
     it('feed stays factory-wide: switching machine emits no finished items', () => {
       const { snapshot: onVps } = mapFactoryDataToSnapshot(baseData, null, 1_000, false, 'vps');
       const { feedItems, snapshot } = mapFactoryDataToSnapshot(baseData, onVps, 2_000, false, 'laptop');

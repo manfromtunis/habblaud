@@ -385,6 +385,8 @@ export interface OfficeSnapshot {
   machines?: FactoryMachine[];
   /** Every active agent across machines, for the feed diff (modo fábrica). */
   feedAgents?: FeedAgentRef[];
+  /** Every room seen across machines, so slots stay stable when switching building (modo fábrica). */
+  knownRooms?: RoomInfo[];
   meta: {
     demo: boolean;
     sources: SourceInfo[];
