@@ -8318,7 +8318,7 @@ html.is-replay #world {
   color: var(--ui-text);
 }
 
-.ui-machine-chip.is-selected {
+.ui-machine-chip.is-active {
   background: var(--ui-accent-soft);
   border-color: rgba(124, 200, 255, 0.4);
   color: var(--ui-accent);
@@ -8335,12 +8335,12 @@ html.is-replay #world {
   background: var(--ui-accent);
 }
 
-.ui-machine-chip__dot--online {
+.ui-machine-chip__dot.is-online {
   background: #4fd18b;
   box-shadow: 0 0 5px rgba(79, 209, 139, 0.45);
 }
 
-.ui-machine-chip__dot--offline {
+.ui-machine-chip__dot.is-offline {
   background: #717d96;
   opacity: 0.75;
 }
@@ -8355,7 +8355,7 @@ html.is-replay #world {
   line-height: 15px;
 }
 
-.ui-machine-chip.is-selected .ui-machine-chip__count {
+.ui-machine-chip.is-active .ui-machine-chip__count {
   background: rgba(124, 200, 255, 0.18);
   color: var(--ui-accent);
 }

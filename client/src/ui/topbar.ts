@@ -275,6 +275,12 @@ export class TopBar implements UiComponent {
     if (first) this.ctx.select({ type: 'agent', id: first.id }, { focus: true });
   }
 
+  /** Switching building closes the drawer: its agent may not be in the new building. */
+  private switchMachine(id: string): void {
+    this.ctx.select(null);
+    this.ctx.store.setMachine(id);
+  }
+
   private renderMachineSwitcher(machines: FactoryMachine[], selected: string | null | undefined): void {
     const isAll = !selected || selected === 'all';
     const totalCount = machines.reduce((acc, m) => acc + (m.agentCount ?? 0), 0);
@@ -286,7 +292,7 @@ export class TopBar implements UiComponent {
         type: 'button',
         role: 'radio',
         attrs: { 'aria-checked': String(isAll) },
-        on: { click: () => this.ctx.store.setMachine('all') },
+        on: { click: () => this.switchMachine('all') },
       },
       h('span', { class: 'ui-machine-chip__label', text: 'All' }),
       h('span', { class: 'ui-machine-chip__count', text: String(totalCount) }),
@@ -312,7 +318,7 @@ export class TopBar implements UiComponent {
           role: 'radio',
           attrs: { 'aria-checked': String(active) },
           title,
-          on: { click: () => this.ctx.store.setMachine(m.id) },
+          on: { click: () => this.switchMachine(m.id) },
         },
         dot,
         label,
