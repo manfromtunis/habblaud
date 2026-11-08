@@ -5,6 +5,7 @@ import { FALLBACK_MARK } from './icons';
 import { emptyOfficeHint } from './provider';
 import { wordmark } from './widgets';
 import { i18n } from '../../../shared/i18n';
+import { formatMachineLastSeen } from '../../../shared/demo/factory';
 
 /** Depois de quanto tempo sem conexão o aviso aparece. */
 const DISCONNECTED_BANNER_MS = 8_000;
@@ -108,9 +109,17 @@ export class EmptyState implements UiComponent {
     const show = officeIsEmpty(this.ctx);
     setHidden(this.el, !show);
     if (!show || !snap) return;
-    setText(this.hint, emptyOfficeHint(snap.accounts));
-    this.demoBtn.disabled = this.busy;
-    setHidden(this.demoBtn, store.mock);
+
+    const offlineMachine = snap.meta.offlineMachine;
+    if (offlineMachine) {
+      const timeStr = formatMachineLastSeen(offlineMachine.lastSeen);
+      setText(this.hint, `${offlineMachine.label} is offline${timeStr ? `, last seen ${timeStr} ago` : ''}`);
+      setHidden(this.demoBtn, true);
+    } else {
+      setText(this.hint, emptyOfficeHint(snap.accounts));
+      this.demoBtn.disabled = this.busy;
+      setHidden(this.demoBtn, store.mock);
+    }
   }
 
   private async startDemo(): Promise<void> {

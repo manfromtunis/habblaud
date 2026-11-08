@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { AccountInfo, AgentInfo, RoomInfo, ShellJob } from '../../../shared/types';
 import {
+  inboxItemOnMachine,
+  machineChipsKey,
+  nextChipIndex,
   accountsOf,
   activityFallback,
   aggregateTasks,
@@ -335,5 +338,48 @@ describe('textos da espera', () => {
     expect(shellDoneKind({ tool: 'ShellDone', error: true })).toBe('fail');
     expect(shellDoneKind({ tool: 'Bash', error: true })).toBeNull();
     expect(shellDoneKind(undefined)).toBeNull();
+  });
+});
+
+describe('inboxItemOnMachine', () => {
+  const snap = {
+    machines: [{ id: 'vps', label: 'vps', online: true }, { id: 'laptop', label: 'laptop', online: true }],
+    agents: [{ name: '3c11', machine: 'laptop' }],
+    rooms: [{ name: 'Support' }],
+    meta: { selectedMachine: 'laptop' },
+  } as unknown as Parameters<typeof inboxItemOnMachine>[1];
+
+  it('matches machine, then sender, then exact project name', () => {
+    expect(inboxItemOnMachine({ machine: 'laptop', from: null, project: 'x' }, snap)).toBe(true);
+    expect(inboxItemOnMachine({ machine: 'vps', from: '3c11', project: 'Support' }, snap)).toBe(false);
+    expect(inboxItemOnMachine({ from: '3c11', project: 'x' }, snap)).toBe(true);
+    expect(inboxItemOnMachine({ from: null, project: 'Support' }, snap)).toBe(true);
+  });
+
+  it('does not match a project by substring', () => {
+    expect(inboxItemOnMachine({ from: null, project: 'Supp' }, snap)).toBe(false);
+    expect(inboxItemOnMachine({ from: null, project: 'port' }, snap)).toBe(false);
+  });
+
+  it('shows everything with All selected', () => {
+    const all = { ...snap, meta: { selectedMachine: 'all' } } as unknown as Parameters<typeof inboxItemOnMachine>[1];
+    expect(inboxItemOnMachine({ machine: 'vps', from: null, project: 'x' }, all)).toBe(true);
+  });
+});
+
+describe('machine chips', () => {
+  it('key changes only when a chip would look different', () => {
+    const m = [{ id: 'a', label: 'a', online: true, agentCount: 1 }];
+    const k = machineChipsKey(m, 'a');
+    expect(machineChipsKey([{ ...m[0] }], 'a')).toBe(k);
+    expect(machineChipsKey(m, null)).not.toBe(k);
+    expect(machineChipsKey([{ ...m[0], agentCount: 2 }], 'a')).not.toBe(k);
+  });
+
+  it('arrow keys wrap around the radiogroup', () => {
+    expect(nextChipIndex('ArrowRight', 2, 3)).toBe(0);
+    expect(nextChipIndex('ArrowLeft', 0, 3)).toBe(2);
+    expect(nextChipIndex('a', 0, 3)).toBeNull();
+    expect(nextChipIndex('ArrowRight', -1, 3)).toBeNull();
   });
 });
