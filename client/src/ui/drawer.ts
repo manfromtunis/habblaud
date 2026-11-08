@@ -261,6 +261,7 @@ class AgentView {
   private agentInboxOpenItem: FactoryInboxItem | null = null;
   private agentInboxChoice = '';
   private agentInboxItemId: string | null = null;
+  private machineLine: HTMLElement;
 
   constructor(
     private ctx: UiContext,
@@ -276,6 +277,7 @@ class AgentView {
     this.accEmail = h('span', { class: 'ui-hero__acc-email' });
     this.roomName = h('span');
     this.roomBtn = h('button', { class: 'ui-room-link', type: 'button', on: { click: () => this.last && ctx.select({ type: 'room', id: this.last.roomId }, { focus: true }) } }, this.roomName);
+    this.machineLine = h('div', { class: 'ui-hero__where ui-hero__machine', hidden: true });
     this.character = new CharacterEditor(ctx);
     const heroText = h(
       'div',
@@ -283,6 +285,7 @@ class AgentView {
       h('div', { class: 'ui-hero__line' }, this.name, this.character.button, this.role),
       h('div', { class: 'ui-hero__acc' }, this.accChip, this.accName, this.accProv, this.accEmail),
       h('div', { class: 'ui-hero__where' }, h('span', { class: 'ui-muted', text: i18n('Sala') }), this.roomBtn),
+      this.machineLine,
     );
     this.gone = h('p', { class: 'ui-gone', text: i18n('Este agente já saiu do escritório.'), hidden: true });
 
@@ -387,6 +390,7 @@ class AgentView {
       ['branch', i18n('Branch')],
       ['perm', i18n('Permissões')],
       ['session', i18n('Sessão'), h('span', { class: 'ui-copy-row' }, this.sessionValue, copyButton(() => this.last?.sessionId ?? '', i18n('Copiar id da sessão')))],
+      ['machine', 'Machine'],
       ['start', i18n('Início')],
       ['duration', i18n('Duração')],
       ['bg', i18n('Execução')],
@@ -529,6 +533,12 @@ class AgentView {
     setHidden(this.accEmail, !accSub);
     setText(this.roomName, room?.name ?? a.roomId);
     setTitle(this.roomBtn, room ? i18n`${room.path}\nClique para ver a sala` : '');
+    if (a.machine) {
+      setText(this.machineLine, `Machine: ${a.machine}`);
+      setHidden(this.machineLine, false);
+    } else {
+      setHidden(this.machineLine, true);
+    }
     setHidden(this.gone, !!live);
     this.el.classList.toggle('is-gone', !live);
 
@@ -765,6 +775,7 @@ class AgentView {
 
     setText(this.sessionValue, a.sessionId);
     setTitle(this.sessionValue, a.sessionId);
+    st.set('machine', a.machine ?? null);
     st.set('start', a.startedAt ? formatDateTime(a.startedAt) : null);
     st.set('duration', a.startedAt ? formatDuration(now - a.startedAt) : null);
     st.set('bg', a.background ? i18n('Em segundo plano') : null);
@@ -835,7 +846,7 @@ class AgentView {
   }
 }
 
-type StatKey = 'tools' | 'tokensIn' | 'tokensOut' | 'cost' | 'lines' | 'subs' | 'model' | 'branch' | 'perm' | 'session' | 'start' | 'duration' | 'bg';
+type StatKey = 'tools' | 'tokensIn' | 'tokensOut' | 'cost' | 'lines' | 'subs' | 'model' | 'branch' | 'perm' | 'session' | 'machine' | 'start' | 'duration' | 'bg';
 
 /** Lista chave/valor de linhas fixas: cada linha é criada uma vez e só tem o texto/visibilidade atualizados. */
 class KvList<K extends string> {

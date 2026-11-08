@@ -454,4 +454,148 @@ describe('mapFactoryDataToSnapshot', () => {
     expect(finishedFeed).toBeDefined();
     expect(waitingFeed).toBeDefined();
   });
+
+  describe('machine scoping and offline handling (v4)', () => {
+    const testMachines = [
+      { id: 'vps', label: 'vps', online: true },
+      { id: 'laptop', label: 'laptop', online: true },
+      { id: 'desktop', label: 'desktop', online: false, lastSeen: new Date(Date.now() - 7_200_000).toISOString() },
+    ];
+
+    const baseData: FactoryOfficeResponse = {
+      machines: testMachines,
+      projects: [
+        { id: 'proj-fee', product: 'core', name: 'Billing engine' },
+        { id: 'proj-supp', product: 'core', name: 'Support service' },
+      ],
+      agents: [
+        {
+          hc: '1a3f',
+          provider: 'claude',
+          product: 'core',
+          project: 'proj-fee',
+          state: 'running',
+          machine: 'vps',
+        },
+        {
+          hc: '2b07',
+          provider: 'claude',
+          product: 'core',
+          project: 'proj-fee',
+          state: 'running',
+          machine: 'vps',
+        },
+        {
+          hc: '3c11',
+          provider: 'claude',
+          product: 'core',
+          project: 'proj-supp',
+          state: 'running',
+          machine: 'laptop',
+        },
+      ],
+    };
+
+    it('filter by machine: scopes agents, rooms, and buildingName', () => {
+      const { snapshot } = mapFactoryDataToSnapshot(baseData, null, Date.now(), false, 'laptop');
+
+      expect(snapshot.meta.buildingName).toBe('laptop');
+      expect(snapshot.meta.selectedMachine).toBe('laptop');
+      expect(snapshot.meta.offlineMachine).toBeNull();
+
+      // Only laptop agent
+      expect(snapshot.agents).toHaveLength(1);
+      expect(snapshot.agents[0].name).toBe('3c11');
+      expect(snapshot.agents[0].machine).toBe('laptop');
+
+      // Rooms scoped to laptop projects
+      expect(snapshot.rooms).toHaveLength(1);
+      expect(snapshot.rooms[0].name).toBe('Support service');
+
+      // Machine live agent counts calculated
+      expect(snapshot.machines).toBeDefined();
+      const vpsMachine = snapshot.machines!.find((m) => m.id === 'vps')!;
+      const laptopMachine = snapshot.machines!.find((m) => m.id === 'laptop')!;
+      const desktopMachine = snapshot.machines!.find((m) => m.id === 'desktop')!;
+
+      expect(vpsMachine.agentCount).toBe(2);
+      expect(laptopMachine.agentCount).toBe(1);
+      expect(desktopMachine.agentCount).toBe(0);
+    });
+
+    it('offline machine: shows empty building, 0 agents, 0 rooms, and offlineMachine meta', () => {
+      const { snapshot } = mapFactoryDataToSnapshot(baseData, null, Date.now(), false, 'desktop');
+
+      expect(snapshot.meta.buildingName).toBe('desktop');
+      expect(snapshot.meta.selectedMachine).toBe('desktop');
+      expect(snapshot.meta.offlineMachine).toBeDefined();
+      expect(snapshot.meta.offlineMachine?.id).toBe('desktop');
+      expect(snapshot.meta.offlineMachine?.online).toBe(false);
+
+      expect(snapshot.agents).toHaveLength(0);
+      expect(snapshot.rooms).toHaveLength(0);
+    });
+
+    it('single-machine hides the switcher: snapshot.machines has 1 entry or none', () => {
+      const singleMachineData: FactoryOfficeResponse = {
+        machine: { id: 'vps', label: 'vps' },
+        machines: [{ id: 'vps', label: 'vps', online: true }],
+        projects: [{ id: 'proj-fee', product: 'core', name: 'Billing engine' }],
+        agents: [{ hc: '1a3f', product: 'core', project: 'proj-fee', state: 'running' }],
+      };
+
+      const { snapshot } = mapFactoryDataToSnapshot(singleMachineData, null, Date.now());
+      expect(snapshot.machines).toHaveLength(1);
+      // Topbar hides switcher when machines <= 1
+    });
+
+    it('missing machine field: behaves backwards-compatibly as today', () => {
+      const legacyData: FactoryOfficeResponse = {
+        machine: { id: 'm1', label: 'legacy-host' },
+        projects: [{ id: 'proj-fee', product: 'core', name: 'Billing engine' }],
+        agents: [
+          { hc: '1a3f', product: 'core', project: 'proj-fee', state: 'running' },
+          { hc: '2b07', product: 'core', project: 'proj-fee', state: 'running' },
+        ],
+      };
+
+      const { snapshot } = mapFactoryDataToSnapshot(legacyData, null, Date.now());
+      expect(snapshot.meta.buildingName).toBe('legacy-host');
+      expect(snapshot.agents).toHaveLength(2);
+      expect(snapshot.rooms).toHaveLength(1);
+      expect(snapshot.meta.selectedMachine).toBeNull();
+      expect(snapshot.meta.offlineMachine).toBeNull();
+    });
+
+    it('FactorySimulator simulator switcher integration: vps, laptop, desktop, all', () => {
+      const sim = new FactorySimulator({ seed: 42 }, 10_000);
+
+      // Default All
+      const snapAll = sim.snapshot(10_000);
+      expect(snapAll.machines).toHaveLength(3);
+      expect(snapAll.meta.buildingName).toBe('office-sim-1');
+      expect(snapAll.agents.length).toBeGreaterThanOrEqual(18);
+
+      // Laptop
+      sim.setMachine('laptop');
+      const snapLaptop = sim.snapshot(10_000);
+      expect(snapLaptop.meta.buildingName).toBe('laptop');
+      expect(snapLaptop.agents).toHaveLength(3);
+      expect(snapLaptop.agents.every((a) => a.machine === 'laptop')).toBe(true);
+
+      // Desktop (offline)
+      sim.setMachine('desktop');
+      const snapDesktop = sim.snapshot(10_000);
+      expect(snapDesktop.meta.buildingName).toBe('desktop');
+      expect(snapDesktop.agents).toHaveLength(0);
+      expect(snapDesktop.rooms).toHaveLength(0);
+      expect(snapDesktop.meta.offlineMachine?.id).toBe('desktop');
+
+      // Reset to All
+      sim.setMachine(null);
+      const snapReset = sim.snapshot(10_000);
+      expect(snapReset.meta.buildingName).toBe('office-sim-1');
+      expect(snapReset.agents.length).toBeGreaterThanOrEqual(18);
+    });
+  });
 });

@@ -84,6 +84,7 @@ export class Sidebar implements UiComponent {
   private inboxBadge: HTMLElement;
   private inboxContainer: HTMLElement;
   private inboxKIndex = -1;
+  private inboxAllMachines = true;
 
   constructor(private ctx: UiContext) {
     this.ctx.openInboxTab = () => this.openInboxTab();
@@ -306,18 +307,42 @@ export class Sidebar implements UiComponent {
     const now = this.ctx.now();
     const q = this.query.trim().toLowerCase();
 
-    if (allItems.length === 0) {
-      this.inboxContainer.replaceChildren(
-        h(
-          'div',
-          { class: 'ui-inbox-empty' },
-          h('p', { class: 'ui-inbox-zero', text: 'Inbox zero. New questions from agents land here.' }),
-        ),
+    const hasMultipleMachines = (snap?.machines?.length ?? 0) > 1;
+    let toolbar: HTMLElement | null = null;
+    if (hasMultipleMachines) {
+      const toggleInput = h('input', {
+        type: 'checkbox',
+        class: 'ui-checkbox',
+        attrs: { id: 'ui-inbox-all-machines' },
+      }) as HTMLInputElement;
+      toggleInput.checked = this.inboxAllMachines;
+      toggleInput.addEventListener('change', () => {
+        this.inboxAllMachines = toggleInput.checked;
+        this.renderInbox();
+      });
+
+      const toggleLabel = h(
+        'label',
+        { class: 'ui-inbox-machine-toggle', attrs: { for: 'ui-inbox-all-machines' } },
+        toggleInput,
+        h('span', { text: 'All machines' }),
       );
-      return;
+      toolbar = h('div', { class: 'ui-inbox-toolbar' }, toggleLabel);
     }
 
-    const filtered = allItems.filter((it) => {
+    const selMach = snap?.meta.selectedMachine;
+    const filterByMachine = !this.inboxAllMachines && hasMultipleMachines && selMach && selMach !== 'all';
+
+    const itemsForMachine = filterByMachine
+      ? allItems.filter((it) => {
+          if (it.machine) return it.machine === selMach;
+          if (it.from && snap?.agents.some((a) => a.name === it.from && a.machine === selMach)) return true;
+          if (it.project && snap?.rooms.some((r) => r.name.toLowerCase().includes(it.project.toLowerCase()))) return true;
+          return false;
+        })
+      : allItems;
+
+    const filtered = itemsForMachine.filter((it) => {
       if (!q) return true;
       return (
         it.title.toLowerCase().includes(q) ||
@@ -327,14 +352,15 @@ export class Sidebar implements UiComponent {
       );
     });
 
-    if (filtered.length === 0) {
-      this.inboxContainer.replaceChildren(
-        h(
-          'div',
-          { class: 'ui-inbox-empty' },
-          h('p', { text: i18n`Nenhum item encontrado para “${this.query.trim()}”.` }),
-        ),
+    if (allItems.length === 0 || filtered.length === 0) {
+      const emptyDiv = h(
+        'div',
+        { class: 'ui-inbox-empty' },
+        allItems.length === 0
+          ? h('p', { class: 'ui-inbox-zero', text: 'Inbox zero. New questions from agents land here.' })
+          : h('p', { text: i18n`Nenhum item encontrado para “${this.query.trim()}”.` }),
       );
+      this.inboxContainer.replaceChildren(...(toolbar ? [toolbar, emptyDiv] : [emptyDiv]));
       return;
     }
 
@@ -422,7 +448,7 @@ export class Sidebar implements UiComponent {
       sections.push(section);
     }
 
-    this.inboxContainer.replaceChildren(...sections);
+    this.inboxContainer.replaceChildren(...(toolbar ? [toolbar, ...sections] : sections));
   }
 
   /** Muda o estado guardado da lista por status (visão, grupos recolhidos, fixados, vistos) e redesenha. */

@@ -12,6 +12,7 @@ import type {
   FactoryInboxItem,
   FactoryInboxKind,
   FactoryInboxOption,
+  FactoryMachine,
   FeedItem,
   Notice,
   OfficeSnapshot,
@@ -110,6 +111,7 @@ export const FACTORY_PROJECTS: readonly FactoryProject[] = [
 interface AgentSpec {
   handle: string;
   roomIndex: number;
+  machine?: string;
   account: '.claude' | '.antigravity' | '.opencode';
   kind: 'main' | 'sub';
   parentHandle?: string;
@@ -224,6 +226,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
   {
     handle: '2f18',
     roomIndex: 2,
+    machine: 'laptop',
     account: '.antigravity',
     kind: 'main',
     factoryState: 'running',
@@ -237,6 +240,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
   {
     handle: '1e90',
     roomIndex: 2,
+    machine: 'laptop',
     account: '.opencode',
     kind: 'main',
     factoryState: 'stalled',
@@ -252,6 +256,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
   {
     handle: '2a14',
     roomIndex: 3,
+    machine: 'laptop',
     account: '.claude',
     kind: 'main',
     factoryState: 'running',
@@ -472,6 +477,7 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
     ],
     project: 'shopkit / ShopKit store',
     from: null,
+    machine: 'laptop',
   },
   // 3. Action item with numbered steps from waiting agent 2e77
   {
@@ -557,8 +563,17 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
     ],
     project: 'payapp / Black Friday 2026',
     from: null,
+    machine: 'laptop',
   },
 ];
+
+export function formatMachineLastSeen(lastSeen?: string | null): string {
+  if (!lastSeen) return '';
+  let s = lastSeen.trim();
+  s = s.replace(/^last\s+seen\s+/i, '');
+  s = s.replace(/\s+ago$/i, '');
+  return s;
+}
 
 export function parseTime(val: unknown, fallback: number = Date.now()): number {
   if (typeof val === 'number') return Number.isFinite(val) ? val : fallback;
@@ -597,6 +612,7 @@ export interface FactoryApiAgent {
   activityError?: boolean;
   permission?: PermissionRequestInfo;
   stats?: AgentStats;
+  machine?: string;
 }
 
 export interface FactoryApiInboxItem {
@@ -609,6 +625,7 @@ export interface FactoryApiInboxItem {
   project: string;
   from?: string | null;
   thread?: string;
+  machine?: string;
   at?: string | number;
 }
 
@@ -618,6 +635,8 @@ export interface FactoryOfficeResponse {
     id?: string;
     label?: string;
   };
+  machines?: FactoryMachine[];
+  selectedMachine?: string | null;
   products?: Record<string, { name?: string }>;
   projects?: Array<{ id: string; name?: string; product?: string; path?: string; kind?: string }>;
   agents?: FactoryApiAgent[];
@@ -675,14 +694,43 @@ export function mapFactoryDataToSnapshot(
   prevSnapshot?: OfficeSnapshot | null,
   now = Date.now(),
   isMock = false,
+  selectedMachine?: string | null,
 ): { snapshot: OfficeSnapshot; feedItems: FeedItem[]; notices: Notice[] } {
   const feedItems: FeedItem[] = [];
   const notices: Notice[] = [];
   let feedSeq = 0;
 
+  // Compute live agent counts per machine
+  const machineCounts = new Map<string, number>();
+  for (const a of data.agents ?? []) {
+    if (a.state !== 'done' && a.machine) {
+      machineCounts.set(a.machine, (machineCounts.get(a.machine) ?? 0) + 1);
+    }
+  }
+  const machines: FactoryMachine[] = (data.machines ?? []).map((m) => ({
+    ...m,
+    agentCount: machineCounts.get(m.id) ?? 0,
+  }));
+
+  const targetMachineId = selectedMachine ?? data.selectedMachine ?? null;
+  const currentMachine = targetMachineId && targetMachineId !== 'all'
+    ? machines.find((m) => m.id === targetMachineId)
+    : null;
+
+  let buildingName = data.machine?.label;
+  let offlineMachine: FactoryMachine | null = null;
+  if (currentMachine) {
+    buildingName = currentMachine.label;
+    if (!currentMachine.online) {
+      offlineMachine = currentMachine;
+    }
+  } else if (machines.length === 1) {
+    buildingName = machines[0].label;
+  }
+
   // 1. Rooms: key by product + project id, display name from projects[].name
   const roomMap = new Map<string, RoomInfo>();
-  if (prevSnapshot?.rooms) {
+  if (prevSnapshot?.rooms && !targetMachineId) {
     for (const r of prevSnapshot.rooms) {
       roomMap.set(r.id, r);
     }
@@ -712,7 +760,7 @@ export function mapFactoryDataToSnapshot(
 
     // display name from projects[].name (fallback the id; product / (no project) for null)
     const name = finalProjId ? (projectObj?.name?.trim() || finalProjId) : `${finalProduct} / (no project)`;
-    const path = projectObj?.path ?? `~/code/${finalProduct}/${finalProjId ? finalProjId.replace(/\s+/g, '-') : ''}`;
+    const path = projectObj?.path ?? `~/code/${finalProduct}/${finalProjId ? finalProjId.replace(/\\s+/g, '-') : ''}`;
 
     if (roomMap.has(id)) {
       const existing = roomMap.get(id)!;
@@ -738,19 +786,26 @@ export function mapFactoryDataToSnapshot(
     return room;
   };
 
-  if (data.projects) {
-    for (const p of data.projects) {
-      getOrCreateRoom(p.product, p.id);
-    }
-  }
-  if (data.agents) {
-    for (const a of data.agents) {
-      getOrCreateRoom(a.product, a.project);
+  // 2. Agents (agents in done leave)
+  let activeRows = (data.agents ?? []).filter((r) => r.state !== 'done');
+  if (currentMachine) {
+    if (!currentMachine.online) {
+      activeRows = [];
+    } else {
+      activeRows = activeRows.filter((r) => r.machine === currentMachine.id);
     }
   }
 
-  // 2. Agents (agents in done leave)
-  const activeRows = (data.agents ?? []).filter((r) => r.state !== 'done');
+  if (!currentMachine || currentMachine.online) {
+    if (data.projects && (!currentMachine || targetMachineId === 'all')) {
+      for (const p of data.projects) {
+        getOrCreateRoom(p.product, p.id);
+      }
+    }
+    for (const a of activeRows) {
+      getOrCreateRoom(a.product, a.project);
+    }
+  }
   const agents: AgentInfo[] = [];
 
   for (const row of activeRows) {
@@ -869,6 +924,7 @@ export function mapFactoryDataToSnapshot(
       canReceive: canRecv,
       canMessage: canRecv,
       thread: row.thread ?? row.hc,
+      machine: row.machine,
     };
 
     agents.push(agent);
@@ -946,6 +1002,7 @@ export function mapFactoryDataToSnapshot(
     reco: item.reco ?? null,
     project: (item.project && projectsById.get(item.project)?.name) || item.project, // the name, like the rooms
     from: item.from ?? null,
+    machine: item.machine,
     at: parseTime(item.at, now),
   }));
 
@@ -1019,12 +1076,15 @@ export function mapFactoryDataToSnapshot(
     accounts,
     inbox,
     answers,
+    machines: machines.length > 0 ? machines : undefined,
     meta: {
       demo: Boolean(data.machine?.id?.includes('demo') || data.machine?.label?.includes('demo')),
       sources: [],
       startedAt: prevSnapshot?.meta?.startedAt ?? now,
       version: 'factory',
-      buildingName: data.machine?.label,
+      buildingName,
+      selectedMachine: machines.length === 0 ? null : (targetMachineId ?? (machines.length === 1 ? machines[0].id : 'all')),
+      offlineMachine,
     },
   };
 
@@ -1037,6 +1097,7 @@ export function buildInitialFactoryOfficeResponse(): FactoryOfficeResponse {
     const proj = FACTORY_PROJECTS[spec.roomIndex];
     return {
       hc: spec.handle,
+      machine: spec.machine ?? 'vps',
       provider: spec.account.replace(/^\./, ''),
       model: spec.model,
       product: proj.product,
@@ -1080,12 +1141,18 @@ export function buildInitialFactoryOfficeResponse(): FactoryOfficeResponse {
     options: spec.options.map((o) => ({ ...o })),
     project: spec.project,
     from: spec.from,
+    machine: spec.machine ?? 'vps',
     at: Date.now() - (180_000 + i * 60_000),
   }));
 
   return {
     builtAt: new Date(Date.now()).toISOString(),
     machine: { label: 'office-sim-1' },
+    machines: [
+      { id: 'vps', label: 'vps', online: true, lastSeen: null },
+      { id: 'laptop', label: 'laptop', online: true, lastSeen: null },
+      { id: 'desktop', label: 'desktop', online: false, lastSeen: '2 h ago' },
+    ],
     projects: FACTORY_PROJECTS.map((p) => ({
       id: p.id,
       product: p.product,
@@ -1126,15 +1193,19 @@ export class FactorySimulator {
   private tickStep = 0;
   private inbox: FactoryInboxItem[] = [];
   private answers: Record<string, { choice: string; note?: string; at: number }> = {};
+  private machines: FactoryMachine[] = [];
+  private selectedMachine: string | null = null;
 
-  constructor(opts: DemoOptions = {}, now = Date.now()) {
+  constructor(opts: DemoOptions & { machine?: string } = {}, now = Date.now()) {
     this.rng = mulberry32(opts.seed ?? hash32(`factory:${now}`));
     this.speed = opts.speed ?? 1;
     this.startedAt = now;
     this.nextTickAt = now + 20_000 / this.speed;
+    this.selectedMachine = opts.machine ?? null;
 
     // Build via shared mapping
     const initial = buildInitialFactoryOfficeResponse();
+    this.machines = initial.machines ? initial.machines.map((m) => ({ ...m })) : [];
     const { snapshot } = mapFactoryDataToSnapshot(initial, null, now, true);
     for (const r of snapshot.rooms) {
       this.rooms.set(r.id, r);
@@ -1162,24 +1233,83 @@ export class FactorySimulator {
     this.dirty = false;
   }
 
+  get machine(): string | null {
+    return this.selectedMachine;
+  }
+
+  setMachine(id: string | null): void {
+    this.selectedMachine = id === 'all' ? null : id;
+    this.dirty = true;
+    this.rev++;
+  }
+
+  private getMachinesWithCounts(): FactoryMachine[] {
+    const liveCounts = new Map<string, number>();
+    for (const a of this.agents.values()) {
+      if (a.status !== 'done' && a.status !== 'offline' && a.machine) {
+        liveCounts.set(a.machine, (liveCounts.get(a.machine) ?? 0) + 1);
+      }
+    }
+    return this.machines.map((m) => ({
+      ...m,
+      agentCount: liveCounts.get(m.id) ?? 0,
+    }));
+  }
+
   snapshot(now = Date.now()): OfficeSnapshot {
+    const machines = this.getMachinesWithCounts();
+    const targetMachine = this.selectedMachine && this.selectedMachine !== 'all'
+      ? machines.find((m) => m.id === this.selectedMachine)
+      : null;
+
+    let rooms: RoomInfo[];
+    let agents: AgentInfo[];
+    let buildingName = 'office-sim-1';
+    let offlineMachine: FactoryMachine | null = null;
+
+    if (targetMachine) {
+      buildingName = targetMachine.label;
+      if (!targetMachine.online) {
+        rooms = [];
+        agents = [];
+        offlineMachine = targetMachine;
+      } else {
+        agents = [...this.agents.values()]
+          .filter((a) => a.machine === targetMachine.id)
+          .map((a) => structuredCloneAgent(a));
+        const agentRoomIds = new Set(agents.map((a) => a.roomId));
+        rooms = [...this.rooms.values()]
+          .filter((r) => agentRoomIds.has(r.id))
+          .map((r) => ({ ...r }));
+      }
+    } else {
+      rooms = [...this.rooms.values()].map((r) => ({ ...r }));
+      agents = [...this.agents.values()].map((a) => structuredCloneAgent(a));
+      if (machines.length === 1) {
+        buildingName = machines[0].label;
+      }
+    }
+
     return {
       rev: this.rev,
       serverTime: now,
-      rooms: [...this.rooms.values()].map((r) => ({ ...r })),
-      agents: [...this.agents.values()].map((a) => structuredCloneAgent(a)),
+      rooms,
+      agents,
       accounts: this.accountsInfo(now),
       inbox: this.inbox.map((item) => ({
         ...item,
         options: item.options.map((o) => ({ ...o })),
       })),
       answers: { ...this.answers },
+      machines: machines.length > 0 ? machines : undefined,
       meta: {
         demo: true,
         sources: [],
         startedAt: this.startedAt,
         version: 'factory',
-        buildingName: 'office-sim-1',
+        buildingName,
+        selectedMachine: this.selectedMachine ?? (machines.length === 1 ? machines[0].id : 'all'),
+        offlineMachine,
       },
     };
   }

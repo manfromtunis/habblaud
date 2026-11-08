@@ -187,6 +187,7 @@ export interface AgentInfo {
   canMessage?: boolean;
   canReceive?: boolean;
   thread?: string;
+  machine?: string;
 }
 
 export interface RoomInfo {
@@ -346,7 +347,16 @@ export interface FactoryInboxItem {
   reco?: string | null;
   project: string;
   from: string | null;
+  machine?: string;
   at: number;
+}
+
+export interface FactoryMachine {
+  id: string;
+  label: string;
+  online: boolean;
+  lastSeen?: string | null;
+  agentCount?: number;
 }
 
 export interface OfficeSnapshot {
@@ -361,6 +371,8 @@ export interface OfficeSnapshot {
   inbox?: FactoryInboxItem[];
   /** Respostas a itens da caixa de entrada (modo fábrica). */
   answers?: Record<string, { choice: string; note?: string; at: number }>;
+  /** Lista de máquinas conectadas (modo fábrica). */
+  machines?: FactoryMachine[];
   meta: {
     demo: boolean;
     sources: SourceInfo[];
@@ -385,6 +397,10 @@ export interface OfficeSnapshot {
     updates?: UpdateStatus;
     /** Nome do prédio na placa (modo fábrica: machine.label). */
     buildingName?: string;
+    /** Máquina selecionada no modo fábrica. */
+    selectedMachine?: string | null;
+    /** Máquina offline selecionada. */
+    offlineMachine?: FactoryMachine | null;
   };
 }
 
