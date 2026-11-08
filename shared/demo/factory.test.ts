@@ -3,6 +3,7 @@ import {
   FactorySimulator,
   FACTORY_PROJECTS,
   mapFactoryDataToSnapshot,
+  formatMachineLastSeen,
   normalizeInboxOptions,
   type FactoryOfficeResponse,
 } from './factory';
@@ -567,6 +568,66 @@ describe('mapFactoryDataToSnapshot', () => {
       expect(snapshot.meta.offlineMachine).toBeNull();
     });
 
+    it('room path fallback hyphenates whitespace in the project id', () => {
+      const { snapshot } = mapFactoryDataToSnapshot(
+        { agents: [{ hc: '1a3f', product: 'core', project: 'my project x', state: 'running' }] },
+        null,
+        1_000,
+      );
+      expect(snapshot.rooms[0].path).toBe('~/code/core/my-project-x');
+    });
+
+    it('feed stays factory-wide: switching machine emits no finished items', () => {
+      const { snapshot: onVps } = mapFactoryDataToSnapshot(baseData, null, 1_000, false, 'vps');
+      const { feedItems, snapshot } = mapFactoryDataToSnapshot(baseData, onVps, 2_000, false, 'laptop');
+      expect(snapshot.agents.map((a) => a.name)).toEqual(['3c11']);
+      expect(feedItems).toEqual([]);
+    });
+
+    it('feed stays factory-wide: an agent finishing on another machine still emits while a machine is selected', () => {
+      const { snapshot: first } = mapFactoryDataToSnapshot(baseData, null, 1_000, false, 'laptop');
+      const next: FactoryOfficeResponse = {
+        ...baseData,
+        agents: baseData.agents!.map((a) => (a.hc === '1a3f' ? { ...a, state: 'done' } : a.hc === '2b07' ? { ...a, state: 'waiting' } : a)),
+      };
+      const { feedItems, snapshot } = mapFactoryDataToSnapshot(next, first, 2_000, false, 'laptop');
+      expect(snapshot.agents.map((a) => a.name)).toEqual(['3c11']);
+      const texts = feedItems.map((f) => f.activity?.text);
+      expect(texts).toContain('1a3f finished');
+      expect(texts).toContain('2b07 is waiting on you');
+      expect(feedItems.find((f) => f.agentName === '1a3f')?.roomName).toBe('Billing engine');
+    });
+
+    it('a subagent without a machine follows its parent: absent from a building without the parent', () => {
+      const data: FactoryOfficeResponse = {
+        ...baseData,
+        agents: [...baseData.agents!, { hc: '9z99', provider: 'claude', product: 'core', project: 'proj-fee', state: 'running', parent: '1a3f' }],
+      };
+      const vps = mapFactoryDataToSnapshot(data, null, 1_000, false, 'vps').snapshot;
+      const laptop = mapFactoryDataToSnapshot(data, null, 1_000, false, 'laptop').snapshot;
+      expect(vps.agents.find((a) => a.name === '9z99')?.machine).toBe('vps');
+      expect(laptop.agents.some((a) => a.name === '9z99')).toBe(false);
+      expect(vps.machines!.find((m) => m.id === 'vps')!.agentCount).toBe(3);
+    });
+
+    it('unknown machine id is treated as All', () => {
+      const { snapshot } = mapFactoryDataToSnapshot(baseData, null, 1_000, false, 'ghost');
+      expect(snapshot.meta.selectedMachine).toBe('all');
+      expect(snapshot.meta.offlineMachine).toBeNull();
+      expect(snapshot.agents).toHaveLength(3);
+      expect(snapshot.rooms).toHaveLength(2);
+    });
+
+    it('formatMachineLastSeen formats ISO strings and epoch ms as a relative age, and keeps legacy text', () => {
+      const now = Date.parse('2026-11-08T12:00:00Z');
+      expect(formatMachineLastSeen('2026-11-08T10:00:00Z', now)).toBe('2 h');
+      expect(formatMachineLastSeen('2026-11-08T11:55:00Z', now)).toBe('5 min');
+      expect(formatMachineLastSeen(now - 3 * 86_400_000, now)).toBe('3 d');
+      expect(formatMachineLastSeen('2 h ago', now)).toBe('2 h');
+      expect(formatMachineLastSeen('last seen 4 min ago', now)).toBe('4 min');
+      expect(formatMachineLastSeen(null, now)).toBe('');
+    });
+
     it('FactorySimulator simulator switcher integration: vps, laptop, desktop, all', () => {
       const sim = new FactorySimulator({ seed: 42 }, 10_000);
 
@@ -580,7 +641,8 @@ describe('mapFactoryDataToSnapshot', () => {
       sim.setMachine('laptop');
       const snapLaptop = sim.snapshot(10_000);
       expect(snapLaptop.meta.buildingName).toBe('laptop');
-      expect(snapLaptop.agents).toHaveLength(3);
+      expect(snapLaptop.agents).toHaveLength(4); // includes subagent 3b55, which follows its parent 2a14
+      expect(snapLaptop.agents.some((a) => a.name === '3b55')).toBe(true);
       expect(snapLaptop.agents.every((a) => a.machine === 'laptop')).toBe(true);
 
       // Desktop (offline)

@@ -12,6 +12,7 @@ import { wordmark } from './widgets';
 import { i18n } from '../../../shared/i18n';
 import type { FactoryMachine } from '../../../shared/types';
 import { formatMachineLastSeen } from '../../../shared/demo/factory';
+import { machineChipsKey, nextChipIndex } from './model';
 
 interface CounterRefs {
   el: HTMLElement;
@@ -35,6 +36,7 @@ export class TopBar implements UiComponent {
   private pillText: HTMLElement;
   private demoBadge: HTMLElement;
   private machineSwitcher: HTMLElement;
+  private machineKey = '';
   private counters = new Map<keyof Counters, CounterRefs>();
   private shellsBtn: HTMLButtonElement;
   /** Próximo agente do botão de shells (cliques seguidos passam por todos, do que espera há mais tempo). */
@@ -139,6 +141,14 @@ export class TopBar implements UiComponent {
     );
 
     this.machineSwitcher = h('div', { class: 'ui-machine-switcher', role: 'radiogroup', attrs: { 'aria-label': 'Select machine' }, hidden: true });
+    this.machineSwitcher.addEventListener('keydown', (e) => {
+      const chips = [...this.machineSwitcher.querySelectorAll<HTMLElement>('[role="radio"]')];
+      const next = nextChipIndex(e.key, chips.indexOf(document.activeElement as HTMLElement), chips.length);
+      if (next === null) return;
+      e.preventDefault();
+      chips[next].focus();
+      chips[next].click();
+    });
 
     this.el = h(
       'header',
@@ -282,6 +292,11 @@ export class TopBar implements UiComponent {
   }
 
   private renderMachineSwitcher(machines: FactoryMachine[], selected: string | null | undefined): void {
+    // Rebuilding the chips drops keyboard focus: only do it when something they show changed.
+    const key = machineChipsKey(machines, selected);
+    if (key === this.machineKey) return;
+    this.machineKey = key;
+    const hadFocus = this.machineSwitcher.contains(document.activeElement);
     const isAll = !selected || selected === 'all';
     const totalCount = machines.reduce((acc, m) => acc + (m.agentCount ?? 0), 0);
 
@@ -328,5 +343,6 @@ export class TopBar implements UiComponent {
     });
 
     this.machineSwitcher.replaceChildren(allChip, ...chips);
+    if (hadFocus) this.machineSwitcher.querySelector<HTMLElement>('.is-active')?.focus();
   }
 }

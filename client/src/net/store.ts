@@ -95,6 +95,17 @@ export function mockOptionsFrom(search: string): { speed: number; sessions: numb
   };
 }
 
+/** Keeps the address bar's ?machine= in step with the selection (no history entry). */
+function writeMachineParam(machine: string | null): void {
+  if (typeof location === 'undefined' || typeof history === 'undefined') return;
+  try {
+    const url = new URL(location.href);
+    if (machine) url.searchParams.set('machine', machine);
+    else url.searchParams.delete('machine');
+    history.replaceState(null, '', url.toString());
+  } catch {}
+}
+
 export class OfficeStore {
   snapshot: OfficeSnapshot | null = null;
   /** Feed global, do mais antigo para o mais recente. */
@@ -205,21 +216,11 @@ export class OfficeStore {
     if (this.selectedMachine === next) return;
     this.selectedMachine = next;
 
-    if (typeof location !== 'undefined' && typeof history !== 'undefined') {
-      try {
-        const url = new URL(location.href);
-        if (next) {
-          url.searchParams.set('machine', next);
-        } else {
-          url.searchParams.delete('machine');
-        }
-        history.replaceState(null, '', url.toString());
-      } catch {}
-    }
+    writeMachineParam(next);
 
-    if (this.mockSim && 'setMachine' in this.mockSim) {
-      (this.mockSim as FactorySimulator).setMachine(next);
-      this.applySnapshot((this.mockSim as FactorySimulator).snapshot());
+    if (this.mockSim instanceof FactorySimulator) {
+      this.mockSim.setMachine(next);
+      this.applySnapshot(this.mockSim.snapshot());
     } else if (this.factory && !this.mock) {
       void this.pollFactoryLive();
     }
@@ -545,6 +546,11 @@ export class OfficeStore {
   }
 
   private setSnapshot(snap: OfficeSnapshot): void {
+    // A machine id the factory does not know (stale link) means All: forget it and clean the URL.
+    if (this.selectedMachine && snap.machines?.length && !snap.machines.some((m) => m.id === this.selectedMachine)) {
+      this.selectedMachine = null;
+      writeMachineParam(null);
+    }
     this.snapshot = snap;
     this.agentIndex = new Map(snap.agents.map((a) => [a.id, a]));
     this.roomIndex = new Map(snap.rooms.map((r) => [r.id, r]));

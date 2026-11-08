@@ -3,21 +3,18 @@ import { resolve, join } from 'node:path';
 import os from 'node:os';
 
 const require = createRequire(import.meta.url);
-const playwrightPath = process.env.PLAYWRIGHT_PATH
-  ? (process.env.PLAYWRIGHT_PATH.startsWith('~/')
-      ? join(os.homedir(), process.env.PLAYWRIGHT_PATH.slice(2))
-      : resolve(process.env.PLAYWRIGHT_PATH))
-  : 'playwright';
+const expand = (p) => resolve(p.startsWith('~/') ? join(os.homedir(), p.slice(2)) : p);
+
+const playwrightPath = process.env.PLAYWRIGHT_PATH ? expand(process.env.PLAYWRIGHT_PATH) : 'playwright';
 
 const { chromium } = require(playwrightPath);
 
-let rawHtml = process.argv[2] ?? '~/factory-pages/proto-office/factory-office-v4.html';
-if (rawHtml.startsWith('~/')) rawHtml = join(os.homedir(), rawHtml.slice(2));
-const htmlPath = resolve(rawHtml);
-
-let rawOut = process.argv[3] ?? '~/factory-pages/proto-office';
-if (rawOut.startsWith('~/')) rawOut = join(os.homedir(), rawOut.slice(2));
-const outDir = resolve(rawOut);
+if (!process.argv[2] || !process.argv[3]) {
+  console.error('Usage: node scripts/verify-machines.mjs <office.html> <out-dir>');
+  process.exit(1);
+}
+const htmlPath = expand(process.argv[2]);
+const outDir = expand(process.argv[3]);
 
 console.log('Testing Factory Office v4 machines proof in Playwright Chromium...');
 console.log(`Target: file://${htmlPath}?factory=1`);

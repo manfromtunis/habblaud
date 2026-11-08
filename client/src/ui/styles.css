@@ -8331,10 +8331,6 @@ html.is-replay #world {
   flex: none;
 }
 
-.ui-machine-chip__dot--all {
-  background: var(--ui-accent);
-}
-
 .ui-machine-chip__dot.is-online {
   background: #4fd18b;
   box-shadow: 0 0 5px rgba(79, 209, 139, 0.45);

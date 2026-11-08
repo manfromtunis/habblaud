@@ -13,6 +13,7 @@ import type {
   FactoryInboxKind,
   FactoryInboxOption,
   FactoryMachine,
+  FeedAgentRef,
   FeedItem,
   Notice,
   OfficeSnapshot,
@@ -270,6 +271,7 @@ const AGENT_SPECS: readonly AgentSpec[] = [
   {
     handle: '3b55',
     roomIndex: 3,
+    machine: 'laptop',
     account: '.antigravity',
     kind: 'sub',
     parentHandle: '2a14',
@@ -567,12 +569,18 @@ export const INITIAL_INBOX_SPECS: readonly Omit<FactoryInboxItem, 'at'>[] = [
   },
 ];
 
-export function formatMachineLastSeen(lastSeen?: string | null): string {
-  if (!lastSeen) return '';
-  let s = lastSeen.trim();
-  s = s.replace(/^last\s+seen\s+/i, '');
-  s = s.replace(/\s+ago$/i, '');
-  return s;
+/** Relative age of a machine's last heartbeat: "5 min", "2 h", "3 d". Accepts ISO strings, epoch ms, or an already formatted "2 h ago". */
+export function formatMachineLastSeen(lastSeen?: string | number | null, now = Date.now()): string {
+  if (lastSeen === null || lastSeen === undefined || lastSeen === '') return '';
+  const text = String(lastSeen).trim();
+  const at = typeof lastSeen === 'number' ? lastSeen : /^\d{4}-\d{2}-\d{2}/.test(text) ? Date.parse(text) : NaN;
+  if (Number.isFinite(at)) {
+    const min = Math.max(1, Math.floor((now - at) / 60_000));
+    if (min < 60) return `${min} min`;
+    const h = Math.floor(min / 60);
+    return h < 24 ? `${h} h` : `${Math.floor(h / 24)} d`;
+  }
+  return text.replace(/^last\s+seen\s+/i, '').replace(/\s+ago$/i, '');
 }
 
 export function parseTime(val: unknown, fallback: number = Date.now()): number {
@@ -700,9 +708,17 @@ export function mapFactoryDataToSnapshot(
   const notices: Notice[] = [];
   let feedSeq = 0;
 
+  // A subagent runs where its parent runs.
+  const machineByHc = new Map((data.agents ?? []).map((r) => [r.hc, r.machine]));
+  const allRows = (data.agents ?? []).map((r) =>
+    !r.machine && r.parent && r.parent !== r.hc && machineByHc.get(r.parent)
+      ? { ...r, machine: machineByHc.get(r.parent) }
+      : r,
+  );
+
   // Compute live agent counts per machine
   const machineCounts = new Map<string, number>();
-  for (const a of data.agents ?? []) {
+  for (const a of allRows) {
     if (a.state !== 'done' && a.machine) {
       machineCounts.set(a.machine, (machineCounts.get(a.machine) ?? 0) + 1);
     }
@@ -712,10 +728,9 @@ export function mapFactoryDataToSnapshot(
     agentCount: machineCounts.get(m.id) ?? 0,
   }));
 
+  // An unknown machine id (stale ?machine= link) is treated as All.
   const targetMachineId = selectedMachine ?? data.selectedMachine ?? null;
-  const currentMachine = targetMachineId && targetMachineId !== 'all'
-    ? machines.find((m) => m.id === targetMachineId)
-    : null;
+  const currentMachine = machines.find((m) => m.id === targetMachineId) ?? null;
 
   let buildingName = data.machine?.label;
   let offlineMachine: FactoryMachine | null = null;
@@ -730,7 +745,7 @@ export function mapFactoryDataToSnapshot(
 
   // 1. Rooms: key by product + project id, display name from projects[].name
   const roomMap = new Map<string, RoomInfo>();
-  if (prevSnapshot?.rooms && !targetMachineId) {
+  if (prevSnapshot?.rooms && !currentMachine) {
     for (const r of prevSnapshot.rooms) {
       roomMap.set(r.id, r);
     }
@@ -743,7 +758,7 @@ export function mapFactoryDataToSnapshot(
     }
   }
 
-  const getOrCreateRoom = (product?: string, projectId?: string | null): RoomInfo => {
+  const describeRoom = (product?: string, projectId?: string | null): Pick<RoomInfo, 'id' | 'name' | 'path'> => {
     const prod = product?.trim() || 'project';
     const projId = projectId?.trim() || null;
 
@@ -760,8 +775,13 @@ export function mapFactoryDataToSnapshot(
 
     // display name from projects[].name (fallback the id; product / (no project) for null)
     const name = finalProjId ? (projectObj?.name?.trim() || finalProjId) : `${finalProduct} / (no project)`;
-    const path = projectObj?.path ?? `~/code/${finalProduct}/${finalProjId ? finalProjId.replace(/\\s+/g, '-') : ''}`;
+    const path = projectObj?.path ?? `~/code/${finalProduct}/${finalProjId ? finalProjId.replace(/\s+/g, '-') : ''}`;
 
+    return { id, name, path };
+  };
+
+  const getOrCreateRoom = (product?: string, projectId?: string | null): RoomInfo => {
+    const { id, name, path } = describeRoom(product, projectId);
     if (roomMap.has(id)) {
       const existing = roomMap.get(id)!;
       if (name && existing.name !== name) {
@@ -787,25 +807,15 @@ export function mapFactoryDataToSnapshot(
   };
 
   // 2. Agents (agents in done leave)
-  let activeRows = (data.agents ?? []).filter((r) => r.state !== 'done');
-  if (currentMachine) {
-    if (!currentMachine.online) {
-      activeRows = [];
-    } else {
-      activeRows = activeRows.filter((r) => r.machine === currentMachine.id);
-    }
-  }
+  const allActive = allRows.filter((r) => r.state !== 'done');
+  const activeRows = !currentMachine
+    ? allActive
+    : currentMachine.online ? allActive.filter((r) => r.machine === currentMachine.id) : [];
 
-  if (!currentMachine || currentMachine.online) {
-    if (data.projects && (!currentMachine || targetMachineId === 'all')) {
-      for (const p of data.projects) {
-        getOrCreateRoom(p.product, p.id);
-      }
-    }
-    for (const a of activeRows) {
-      getOrCreateRoom(a.product, a.project);
-    }
+  if (!currentMachine) {
+    for (const p of data.projects ?? []) getOrCreateRoom(p.product, p.id);
   }
+  for (const a of activeRows) getOrCreateRoom(a.product, a.project);
   const agents: AgentInfo[] = [];
 
   for (const row of activeRows) {
@@ -932,7 +942,7 @@ export function mapFactoryDataToSnapshot(
 
   // 3. Accounts: one per provider present
   const provMap = new Map<string, { color?: string; noQuota: boolean; sessions: number }>();
-  for (const row of (data.agents ?? [])) {
+  for (const row of allRows) {
     const p = (row.provider ?? 'claude').replace(/^\./, '').toLowerCase();
     const entry = provMap.get(p) ?? { noQuota: false, sessions: 0 };
     if (row.state === 'quota') entry.noQuota = true;
@@ -1018,51 +1028,43 @@ export function mapFactoryDataToSnapshot(
     }
   }
 
-  // 5. Feed derived from state changes
+  // 5. Feed derived from state changes. Factory-wide: diffed on every active row, not just the selected machine's.
+  const feedAgents: FeedAgentRef[] = allActive.map((r) => {
+    const room = describeRoom(r.product, r.project);
+    return {
+      id: `factory:agent:${r.hc}`,
+      name: r.hc,
+      roomId: room.id,
+      roomName: room.name,
+      account: r.provider ? (r.provider.startsWith('.') ? r.provider : `.${r.provider.toLowerCase()}`) : '.claude',
+      waiting: r.state === 'waiting',
+    };
+  });
   if (prevSnapshot) {
-    const currentHcs = new Set(activeRows.map((r) => r.hc));
-    for (const prevA of prevSnapshot.agents) {
-      if (!currentHcs.has(prevA.name)) {
-        const room = prevSnapshot.rooms.find((r) => r.id === prevA.roomId);
-        feedItems.push({
-          id: `feed-${now}-${++feedSeq}`,
-          agentId: prevA.id,
-          roomId: prevA.roomId,
-          agentName: prevA.name,
-          roomName: room?.name ?? '',
-          account: prevA.account,
-          activity: {
-            id: `act-${now}-${++feedSeq}`,
-            kind: 'done',
-            icon: '🏁',
-            text: `${prevA.name} finished`,
-            at: now,
-          },
-        });
-      }
+    const prevAgents: FeedAgentRef[] = prevSnapshot.feedAgents ?? prevSnapshot.agents.map((a) => ({
+      id: a.id,
+      name: a.name,
+      roomId: a.roomId,
+      roomName: prevSnapshot.rooms.find((r) => r.id === a.roomId)?.name ?? '',
+      account: a.account,
+      waiting: a.status === 'waiting',
+    }));
+    const push = (ref: FeedAgentRef, kind: Activity['kind'], icon: string, text: string) =>
+      feedItems.push({
+        id: `feed-${now}-${++feedSeq}`,
+        agentId: ref.id,
+        roomId: ref.roomId,
+        agentName: ref.name,
+        roomName: ref.roomName,
+        account: ref.account,
+        activity: { id: `act-${now}-${++feedSeq}`, kind, icon, text, at: now },
+      });
+    const currentIds = new Set(feedAgents.map((a) => a.id));
+    for (const prevA of prevAgents) {
+      if (!currentIds.has(prevA.id)) push(prevA, 'done', '🏁', `${prevA.name} finished`);
     }
-    for (const a of agents) {
-      if (a.status === 'waiting') {
-        const prevA = prevSnapshot.agents.find((prev) => prev.id === a.id);
-        if (!prevA || prevA.status !== 'waiting') {
-          const room = roomMap.get(a.roomId);
-          feedItems.push({
-            id: `feed-${now}-${++feedSeq}`,
-            agentId: a.id,
-            roomId: a.roomId,
-            agentName: a.name,
-            roomName: room?.name ?? '',
-            account: a.account,
-            activity: {
-              id: `act-${now}-${++feedSeq}`,
-              kind: 'ask',
-              icon: '✋',
-              text: `${a.name} is waiting on you`,
-              at: now,
-            },
-          });
-        }
-      }
+    for (const a of feedAgents) {
+      if (a.waiting && !prevAgents.some((p) => p.id === a.id && p.waiting)) push(a, 'ask', '✋', `${a.name} is waiting on you`);
     }
   }
 
@@ -1077,13 +1079,14 @@ export function mapFactoryDataToSnapshot(
     inbox,
     answers,
     machines: machines.length > 0 ? machines : undefined,
+    feedAgents,
     meta: {
       demo: Boolean(data.machine?.id?.includes('demo') || data.machine?.label?.includes('demo')),
       sources: [],
       startedAt: prevSnapshot?.meta?.startedAt ?? now,
       version: 'factory',
       buildingName,
-      selectedMachine: machines.length === 0 ? null : (targetMachineId ?? (machines.length === 1 ? machines[0].id : 'all')),
+      selectedMachine: machines.length === 0 ? null : (currentMachine?.id ?? (machines.length === 1 ? machines[0].id : 'all')),
       offlineMachine,
     },
   };
@@ -1233,10 +1236,6 @@ export class FactorySimulator {
     this.dirty = false;
   }
 
-  get machine(): string | null {
-    return this.selectedMachine;
-  }
-
   setMachine(id: string | null): void {
     this.selectedMachine = id === 'all' ? null : id;
     this.dirty = true;
@@ -1308,7 +1307,7 @@ export class FactorySimulator {
         startedAt: this.startedAt,
         version: 'factory',
         buildingName,
-        selectedMachine: this.selectedMachine ?? (machines.length === 1 ? machines[0].id : 'all'),
+        selectedMachine: targetMachine?.id ?? (machines.length === 1 ? machines[0].id : 'all'),
         offlineMachine,
       },
     };

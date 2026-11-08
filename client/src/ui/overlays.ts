@@ -110,17 +110,15 @@ export class EmptyState implements UiComponent {
     setHidden(this.el, !show);
     if (!show || !snap) return;
 
-    const offlineMachine = snap.meta.offlineMachine ?? (
-      snap.meta.selectedMachine && snap.machines?.find((m) => m.id === snap.meta.selectedMachine && !m.online)
-    );
+    const offlineMachine = snap.meta.offlineMachine;
     if (offlineMachine) {
       const timeStr = formatMachineLastSeen(offlineMachine.lastSeen);
-      setText(this.hint, `${offlineMachine.label} is offline, last seen ${timeStr} ago`);
+      setText(this.hint, `${offlineMachine.label} is offline${timeStr ? `, last seen ${timeStr} ago` : ''}`);
       setHidden(this.demoBtn, true);
     } else {
       setText(this.hint, emptyOfficeHint(snap.accounts));
       this.demoBtn.disabled = this.busy;
-      setHidden(this.demoBtn, store.mock || store.factory);
+      setHidden(this.demoBtn, store.mock);
     }
   }
 

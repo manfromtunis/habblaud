@@ -252,6 +252,7 @@ export const EN: Readonly<Record<string, string>> = {
   'Execução': 'Run',
   'Estatísticas': 'Stats',
   "{0}\nClique para ver a sala": "{0}\nClick to see the room",
+  "Máquina: {0}": "Machine: {0}",
   'Desde {0}': 'Since {0}',
   'seu projeto': 'your project',
   'Próxima fase em {0}': 'Next phase in {0}',

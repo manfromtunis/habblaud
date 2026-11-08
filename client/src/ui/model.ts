@@ -1,6 +1,7 @@
 // Modelo de apresentação da UI: agrupamento salas -> agentes -> subagentes, filtros, contadores e rótulos.
 // Funções puras (sem DOM), testadas em ui/model.test.ts.
-import type { AccountInfo, Activity, AgentInfo, AgentStatus, OfficeSnapshot, RoomInfo, ShellJob, TaskItem } from '../../../shared/types';
+import type { AccountInfo, Activity, AgentInfo, AgentStatus, FactoryInboxItem, FactoryMachine, OfficeSnapshot, RoomInfo, ShellJob, TaskItem } from '../../../shared/types';
+import { formatMachineLastSeen } from '../../../shared/demo/factory';
 import { formatElapsed, normalizeSearch } from './format';
 import { i18n } from '../../../shared/i18n';
 
@@ -432,4 +433,29 @@ export function mergeHistory<T extends { id: string; at: number }>(history: read
   for (const a of history) seen.set(a.id, a);
   for (const a of recent) seen.set(a.id, a);
   return [...seen.values()].sort((a, b) => a.at - b.at).slice(-limit);
+}
+
+/** Inbox item belongs to the selected machine (all items when no single machine is selected). Project match is exact. */
+export function inboxItemOnMachine(
+  it: Pick<FactoryInboxItem, 'machine' | 'from' | 'project'>,
+  snap: Pick<OfficeSnapshot, 'agents' | 'rooms' | 'machines' | 'meta'> | null | undefined,
+): boolean {
+  const sel = snap?.meta.selectedMachine;
+  if (!snap || (snap.machines?.length ?? 0) < 2 || !sel || sel === 'all') return true;
+  if (it.machine) return it.machine === sel;
+  if (it.from && snap.agents.some((a) => a.name === it.from && a.machine === sel)) return true;
+  return !!it.project && snap.rooms.some((r) => r.name === it.project);
+}
+
+/** Changes whenever a chip would look different (labels, online dots, counts, last-seen text, selection). */
+export function machineChipsKey(machines: readonly FactoryMachine[], selected: string | null | undefined): string {
+  return JSON.stringify([selected ?? 'all', machines.map((m) => [m.id, m.label, m.online, m.agentCount ?? 0, formatMachineLastSeen(m.lastSeen)])]);
+}
+
+/** Radiogroup arrows: Right/Down next, Left/Up previous, wrapping. Null for other keys or no focused chip. */
+export function nextChipIndex(key: string, current: number, count: number): number | null {
+  if (current < 0 || count === 0) return null;
+  if (key === 'ArrowRight' || key === 'ArrowDown') return (current + 1) % count;
+  if (key === 'ArrowLeft' || key === 'ArrowUp') return (current - 1 + count) % count;
+  return null;
 }

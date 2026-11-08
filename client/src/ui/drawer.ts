@@ -390,7 +390,6 @@ class AgentView {
       ['branch', i18n('Branch')],
       ['perm', i18n('Permissões')],
       ['session', i18n('Sessão'), h('span', { class: 'ui-copy-row' }, this.sessionValue, copyButton(() => this.last?.sessionId ?? '', i18n('Copiar id da sessão')))],
-      ['machine', 'Machine'],
       ['start', i18n('Início')],
       ['duration', i18n('Duração')],
       ['bg', i18n('Execução')],
@@ -534,7 +533,8 @@ class AgentView {
     setText(this.roomName, room?.name ?? a.roomId);
     setTitle(this.roomBtn, room ? i18n`${room.path}\nClique para ver a sala` : '');
     if (a.machine) {
-      setText(this.machineLine, `Machine: ${a.machine}`);
+      const label = this.ctx.store.snapshot?.machines?.find((m) => m.id === a.machine)?.label ?? a.machine;
+      setText(this.machineLine, i18n`Máquina: ${label}`);
       setHidden(this.machineLine, false);
     } else {
       setHidden(this.machineLine, true);
@@ -775,7 +775,6 @@ class AgentView {
 
     setText(this.sessionValue, a.sessionId);
     setTitle(this.sessionValue, a.sessionId);
-    st.set('machine', a.machine ?? null);
     st.set('start', a.startedAt ? formatDateTime(a.startedAt) : null);
     st.set('duration', a.startedAt ? formatDuration(now - a.startedAt) : null);
     st.set('bg', a.background ? i18n('Em segundo plano') : null);
@@ -846,7 +845,7 @@ class AgentView {
   }
 }
 
-type StatKey = 'tools' | 'tokensIn' | 'tokensOut' | 'cost' | 'lines' | 'subs' | 'model' | 'branch' | 'perm' | 'session' | 'machine' | 'start' | 'duration' | 'bg';
+type StatKey = 'tools' | 'tokensIn' | 'tokensOut' | 'cost' | 'lines' | 'subs' | 'model' | 'branch' | 'perm' | 'session' | 'start' | 'duration' | 'bg';
 
 /** Lista chave/valor de linhas fixas: cada linha é criada uma vez e só tem o texto/visibilidade atualizados. */
 class KvList<K extends string> {

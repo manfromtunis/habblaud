@@ -8,7 +8,7 @@ import { moveRoom, orderRooms } from './roomorder';
 import { h, iconButton, KeyedList, setAttr, setHidden, setStyleVar, setText, setTitle } from './dom';
 import { plural, relativeTime, shortPath } from './format';
 import { ICONS } from './icons';
-import { groupRooms, roleLabel, STATUS_LABEL, type AgentNode, type RoomGroup } from './model';
+import { groupRooms, inboxItemOnMachine, roleLabel, STATUS_LABEL, type AgentNode, type RoomGroup } from './model';
 import { officeIsEmpty } from './overlays';
 import { createAgentRow, updateAgentRow, type RowLead } from './rows';
 import { DEFAULT_STATE, groupByStatus, isCollapsed, loadState, markSeen, saveState, settle, statusGroup, togglePin, type GroupKey, type SideState, type StatusGroup } from './statusgroups';
@@ -85,6 +85,8 @@ export class Sidebar implements UiComponent {
   private inboxContainer: HTMLElement;
   private inboxKIndex = -1;
   private inboxAllMachines = true;
+  /** Built once so keyboard focus on the checkbox survives refreshes; shown only with 2+ machines. */
+  private inboxToolbar: HTMLElement;
 
   constructor(private ctx: UiContext) {
     this.ctx.openInboxTab = () => this.openInboxTab();
@@ -158,7 +160,18 @@ export class Sidebar implements UiComponent {
     });
     const list = h('div', { class: 'ui-rooms', role: 'list', attrs: { 'aria-label': i18n('Salas') } });
     this.inboxContainer = h('div', { class: 'ui-rooms ui-inbox-container', role: 'list', attrs: { 'aria-label': 'Inbox' } });
-    this.scroller.append(byStatus, list, this.inboxContainer);
+    const toggleInput = h('input', { type: 'checkbox', class: 'ui-checkbox', attrs: { id: 'ui-inbox-all-machines' } }) as HTMLInputElement;
+    toggleInput.checked = this.inboxAllMachines;
+    toggleInput.addEventListener('change', () => {
+      this.inboxAllMachines = toggleInput.checked;
+      this.renderInbox();
+    });
+    this.inboxToolbar = h(
+      'div',
+      { class: 'ui-inbox-toolbar', hidden: true },
+      h('label', { class: 'ui-inbox-machine-toggle', attrs: { for: 'ui-inbox-all-machines' } }, toggleInput, h('span', { text: 'All machines' })),
+    );
+    this.scroller.append(byStatus, list, this.inboxToolbar, this.inboxContainer);
     this.rooms = new KeyedList<RoomGroup>(list, {
       key: (g) => g.room.id,
       create: (g) => this.createRoom(g),
@@ -240,6 +253,7 @@ export class Sidebar implements UiComponent {
     setHidden(this.rooms.container, !byRooms);
     setHidden(this.groups.container, !byStatus);
     setHidden(this.inboxContainer, !byInbox);
+    setHidden(this.inboxToolbar, !byInbox || (snap?.machines?.length ?? 0) < 2);
 
     if (byInbox) {
       setHidden(this.empty, true);
@@ -307,40 +321,7 @@ export class Sidebar implements UiComponent {
     const now = this.ctx.now();
     const q = this.query.trim().toLowerCase();
 
-    const hasMultipleMachines = (snap?.machines?.length ?? 0) > 1;
-    let toolbar: HTMLElement | null = null;
-    if (hasMultipleMachines) {
-      const toggleInput = h('input', {
-        type: 'checkbox',
-        class: 'ui-checkbox',
-        attrs: { id: 'ui-inbox-all-machines' },
-      }) as HTMLInputElement;
-      toggleInput.checked = this.inboxAllMachines;
-      toggleInput.addEventListener('change', () => {
-        this.inboxAllMachines = toggleInput.checked;
-        this.renderInbox();
-      });
-
-      const toggleLabel = h(
-        'label',
-        { class: 'ui-inbox-machine-toggle', attrs: { for: 'ui-inbox-all-machines' } },
-        toggleInput,
-        h('span', { text: 'All machines' }),
-      );
-      toolbar = h('div', { class: 'ui-inbox-toolbar' }, toggleLabel);
-    }
-
-    const selMach = snap?.meta.selectedMachine;
-    const filterByMachine = !this.inboxAllMachines && hasMultipleMachines && selMach && selMach !== 'all';
-
-    const itemsForMachine = filterByMachine
-      ? allItems.filter((it) => {
-          if (it.machine) return it.machine === selMach;
-          if (it.from && snap?.agents.some((a) => a.name === it.from && a.machine === selMach)) return true;
-          if (it.project && snap?.rooms.some((r) => r.name.toLowerCase().includes(it.project.toLowerCase()))) return true;
-          return false;
-        })
-      : allItems;
+    const itemsForMachine = this.inboxAllMachines ? allItems : allItems.filter((it) => inboxItemOnMachine(it, snap));
 
     const filtered = itemsForMachine.filter((it) => {
       if (!q) return true;
@@ -360,7 +341,7 @@ export class Sidebar implements UiComponent {
           ? h('p', { class: 'ui-inbox-zero', text: 'Inbox zero. New questions from agents land here.' })
           : h('p', { text: i18n`Nenhum item encontrado para “${this.query.trim()}”.` }),
       );
-      this.inboxContainer.replaceChildren(...(toolbar ? [toolbar, emptyDiv] : [emptyDiv]));
+      this.inboxContainer.replaceChildren(emptyDiv);
       return;
     }
 
@@ -448,7 +429,7 @@ export class Sidebar implements UiComponent {
       sections.push(section);
     }
 
-    this.inboxContainer.replaceChildren(...(toolbar ? [toolbar, ...sections] : sections));
+    this.inboxContainer.replaceChildren(...sections);
   }
 
   /** Muda o estado guardado da lista por status (visão, grupos recolhidos, fixados, vistos) e redesenha. */
