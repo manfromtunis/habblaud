@@ -445,3 +445,32 @@ describe('OfficeStore: factory live mode', () => {
     });
   });
 });
+
+describe('OfficeStore: unknown ?machine=', () => {
+  it('falls back to All when the factory does not list that machine', () => {
+    const store = new OfficeStore({ factory: true, mock: false, search: '?machine=ghost' });
+    expect(store.selectedMachine).toBe('ghost');
+    const snap: OfficeSnapshot = {
+      rev: 1,
+      serverTime: 1,
+      rooms: [],
+      agents: [],
+      accounts: [],
+      machines: [{ id: 'vps', label: 'vps', online: true }, { id: 'laptop', label: 'laptop', online: true }],
+      meta: { demo: false, sources: [], startedAt: 0, version: 'factory' },
+    };
+    (store as unknown as { setSnapshot(s: OfficeSnapshot): void }).setSnapshot(snap);
+    expect(store.selectedMachine).toBeNull();
+  });
+
+  it('keeps a known machine', () => {
+    const store = new OfficeStore({ factory: true, mock: false, search: '?machine=vps' });
+    const snap: OfficeSnapshot = {
+      rev: 1, serverTime: 1, rooms: [], agents: [], accounts: [],
+      machines: [{ id: 'vps', label: 'vps', online: true }, { id: 'laptop', label: 'laptop', online: true }],
+      meta: { demo: false, sources: [], startedAt: 0, version: 'factory' },
+    };
+    (store as unknown as { setSnapshot(s: OfficeSnapshot): void }).setSnapshot(snap);
+    expect(store.selectedMachine).toBe('vps');
+  });
+});

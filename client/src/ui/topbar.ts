@@ -10,6 +10,9 @@ import { UsageCards } from './usage';
 import { VersionChip } from './version';
 import { wordmark } from './widgets';
 import { i18n } from '../../../shared/i18n';
+import type { FactoryMachine } from '../../../shared/types';
+import { formatMachineLastSeen } from '../../../shared/demo/factory';
+import { machineChipsKey, nextChipIndex } from './model';
 
 interface CounterRefs {
   el: HTMLElement;
@@ -32,6 +35,8 @@ export class TopBar implements UiComponent {
   private pill: HTMLElement;
   private pillText: HTMLElement;
   private demoBadge: HTMLElement;
+  private machineSwitcher: HTMLElement;
+  private machineKey = '';
   private counters = new Map<keyof Counters, CounterRefs>();
   private shellsBtn: HTMLButtonElement;
   /** Próximo agente do botão de shells (cliques seguidos passam por todos, do que espera há mais tempo). */
@@ -135,10 +140,21 @@ export class TopBar implements UiComponent {
       ),
     );
 
+    this.machineSwitcher = h('div', { class: 'ui-machine-switcher', role: 'radiogroup', attrs: { 'aria-label': 'Select machine' }, hidden: true });
+    this.machineSwitcher.addEventListener('keydown', (e) => {
+      const chips = [...this.machineSwitcher.querySelectorAll<HTMLElement>('[role="radio"]')];
+      const next = nextChipIndex(e.key, chips.indexOf(document.activeElement as HTMLElement), chips.length);
+      if (next === null) return;
+      e.preventDefault();
+      chips[next].focus();
+      chips[next].click();
+    });
+
     this.el = h(
       'header',
       { class: 'ui-topbar', role: 'banner' },
       h('div', { class: 'ui-topbar__left' }, ...leftItems),
+      this.machineSwitcher,
       counterWrap,
       this.usage.el,
       h('div', { class: 'ui-topbar__right' }, viewGroup, panelGroup),
@@ -208,6 +224,14 @@ export class TopBar implements UiComponent {
       setHidden(this.version.el, true);
     }
 
+    const machines = snap?.machines ?? [];
+    if (!store.factory || machines.length <= 1) {
+      setHidden(this.machineSwitcher, true);
+    } else {
+      setHidden(this.machineSwitcher, false);
+      this.renderMachineSwitcher(machines, snap?.meta.selectedMachine ?? store.selectedMachine);
+    }
+
     this.sidebarBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('sidebar')));
     this.feedBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('feed')));
     this.timelapseBtn.setAttribute('aria-pressed', String(this.ctx.isTimelapseOpen()));
@@ -259,5 +283,66 @@ export class TopBar implements UiComponent {
     if (next) return focusPermission(this.ctx, next.id);
     const first = waitingAgents(agents)[0];
     if (first) this.ctx.select({ type: 'agent', id: first.id }, { focus: true });
+  }
+
+  /** Switching building closes the drawer: its agent may not be in the new building. */
+  private switchMachine(id: string): void {
+    this.ctx.select(null);
+    this.ctx.store.setMachine(id);
+  }
+
+  private renderMachineSwitcher(machines: FactoryMachine[], selected: string | null | undefined): void {
+    // Rebuilding the chips drops keyboard focus: only do it when something they show changed.
+    const key = machineChipsKey(machines, selected);
+    if (key === this.machineKey) return;
+    this.machineKey = key;
+    const hadFocus = this.machineSwitcher.contains(document.activeElement);
+    const isAll = !selected || selected === 'all';
+    const totalCount = machines.reduce((acc, m) => acc + (m.agentCount ?? 0), 0);
+
+    const allChip = h(
+      'button',
+      {
+        class: `ui-machine-chip ${isAll ? 'is-active' : ''}`,
+        type: 'button',
+        role: 'radio',
+        attrs: { 'aria-checked': String(isAll) },
+        on: { click: () => this.switchMachine('all') },
+      },
+      h('span', { class: 'ui-machine-chip__label', text: 'All' }),
+      h('span', { class: 'ui-machine-chip__count', text: String(totalCount) }),
+    );
+
+    const chips = machines.map((m) => {
+      const active = selected === m.id;
+      const dot = h('span', { class: `ui-machine-chip__dot ${m.online ? 'is-online' : 'is-offline'}` });
+      const label = h('span', { class: 'ui-machine-chip__label', text: m.label });
+      const count = h('span', { class: 'ui-machine-chip__count', text: String(m.agentCount ?? 0) });
+      const lastSeenStr = formatMachineLastSeen(m.lastSeen);
+      const extra = !m.online && lastSeenStr ? h('span', { class: 'ui-machine-chip__last-seen', text: `last seen ${lastSeenStr}` }) : null;
+
+      const title = m.online
+        ? `${m.label} (${m.agentCount ?? 0} live agents)`
+        : `${m.label} is offline${lastSeenStr ? `, last seen ${lastSeenStr} ago` : ''}`;
+
+      return h(
+        'button',
+        {
+          class: `ui-machine-chip ${active ? 'is-active' : ''}`,
+          type: 'button',
+          role: 'radio',
+          attrs: { 'aria-checked': String(active) },
+          title,
+          on: { click: () => this.switchMachine(m.id) },
+        },
+        dot,
+        label,
+        count,
+        extra,
+      );
+    });
+
+    this.machineSwitcher.replaceChildren(allChip, ...chips);
+    if (hadFocus) this.machineSwitcher.querySelector<HTMLElement>('.is-active')?.focus();
   }
 }

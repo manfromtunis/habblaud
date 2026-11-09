@@ -3,6 +3,7 @@ import {
   FactorySimulator,
   FACTORY_PROJECTS,
   mapFactoryDataToSnapshot,
+  formatMachineLastSeen,
   normalizeInboxOptions,
   type FactoryOfficeResponse,
 } from './factory';
@@ -453,5 +454,230 @@ describe('mapFactoryDataToSnapshot', () => {
     const waitingFeed = feedItems.find((f) => f.activity?.text.includes('2b07 is waiting on you'));
     expect(finishedFeed).toBeDefined();
     expect(waitingFeed).toBeDefined();
+  });
+
+  describe('machine scoping and offline handling (v4)', () => {
+    const testMachines = [
+      { id: 'vps', label: 'vps', online: true },
+      { id: 'laptop', label: 'laptop', online: true },
+      { id: 'desktop', label: 'desktop', online: false, lastSeen: new Date(Date.now() - 7_200_000).toISOString() },
+    ];
+
+    const baseData: FactoryOfficeResponse = {
+      machines: testMachines,
+      projects: [
+        { id: 'proj-fee', product: 'core', name: 'Billing engine' },
+        { id: 'proj-supp', product: 'core', name: 'Support service' },
+      ],
+      agents: [
+        {
+          hc: '1a3f',
+          provider: 'claude',
+          product: 'core',
+          project: 'proj-fee',
+          state: 'running',
+          machine: 'vps',
+        },
+        {
+          hc: '2b07',
+          provider: 'claude',
+          product: 'core',
+          project: 'proj-fee',
+          state: 'running',
+          machine: 'vps',
+        },
+        {
+          hc: '3c11',
+          provider: 'claude',
+          product: 'core',
+          project: 'proj-supp',
+          state: 'running',
+          machine: 'laptop',
+        },
+      ],
+    };
+
+    it('filter by machine: scopes agents, rooms, and buildingName', () => {
+      const { snapshot } = mapFactoryDataToSnapshot(baseData, null, Date.now(), false, 'laptop');
+
+      expect(snapshot.meta.buildingName).toBe('laptop');
+      expect(snapshot.meta.selectedMachine).toBe('laptop');
+      expect(snapshot.meta.offlineMachine).toBeNull();
+
+      // Only laptop agent
+      expect(snapshot.agents).toHaveLength(1);
+      expect(snapshot.agents[0].name).toBe('3c11');
+      expect(snapshot.agents[0].machine).toBe('laptop');
+
+      // Rooms scoped to laptop projects
+      expect(snapshot.rooms).toHaveLength(1);
+      expect(snapshot.rooms[0].name).toBe('Support service');
+
+      // Machine live agent counts calculated
+      expect(snapshot.machines).toBeDefined();
+      const vpsMachine = snapshot.machines!.find((m) => m.id === 'vps')!;
+      const laptopMachine = snapshot.machines!.find((m) => m.id === 'laptop')!;
+      const desktopMachine = snapshot.machines!.find((m) => m.id === 'desktop')!;
+
+      expect(vpsMachine.agentCount).toBe(2);
+      expect(laptopMachine.agentCount).toBe(1);
+      expect(desktopMachine.agentCount).toBe(0);
+    });
+
+    it('offline machine: shows empty building, 0 agents, 0 rooms, and offlineMachine meta', () => {
+      const { snapshot } = mapFactoryDataToSnapshot(baseData, null, Date.now(), false, 'desktop');
+
+      expect(snapshot.meta.buildingName).toBe('desktop');
+      expect(snapshot.meta.selectedMachine).toBe('desktop');
+      expect(snapshot.meta.offlineMachine).toBeDefined();
+      expect(snapshot.meta.offlineMachine?.id).toBe('desktop');
+      expect(snapshot.meta.offlineMachine?.online).toBe(false);
+
+      expect(snapshot.agents).toHaveLength(0);
+      expect(snapshot.rooms).toHaveLength(0);
+    });
+
+    it('single-machine hides the switcher: snapshot.machines has 1 entry or none', () => {
+      const singleMachineData: FactoryOfficeResponse = {
+        machine: { id: 'vps', label: 'vps' },
+        machines: [{ id: 'vps', label: 'vps', online: true }],
+        projects: [{ id: 'proj-fee', product: 'core', name: 'Billing engine' }],
+        agents: [{ hc: '1a3f', product: 'core', project: 'proj-fee', state: 'running' }],
+      };
+
+      const { snapshot } = mapFactoryDataToSnapshot(singleMachineData, null, Date.now());
+      expect(snapshot.machines).toHaveLength(1);
+      // Topbar hides switcher when machines <= 1
+    });
+
+    it('missing machine field: behaves backwards-compatibly as today', () => {
+      const legacyData: FactoryOfficeResponse = {
+        machine: { id: 'm1', label: 'legacy-host' },
+        projects: [{ id: 'proj-fee', product: 'core', name: 'Billing engine' }],
+        agents: [
+          { hc: '1a3f', product: 'core', project: 'proj-fee', state: 'running' },
+          { hc: '2b07', product: 'core', project: 'proj-fee', state: 'running' },
+        ],
+      };
+
+      const { snapshot } = mapFactoryDataToSnapshot(legacyData, null, Date.now());
+      expect(snapshot.meta.buildingName).toBe('legacy-host');
+      expect(snapshot.agents).toHaveLength(2);
+      expect(snapshot.rooms).toHaveLength(1);
+      expect(snapshot.meta.selectedMachine).toBeNull();
+      expect(snapshot.meta.offlineMachine).toBeNull();
+    });
+
+    it('room path fallback hyphenates whitespace in the project id', () => {
+      const { snapshot } = mapFactoryDataToSnapshot(
+        { agents: [{ hc: '1a3f', product: 'core', project: 'my project x', state: 'running' }] },
+        null,
+        1_000,
+      );
+      expect(snapshot.rooms[0].path).toBe('~/code/core/my-project-x');
+    });
+
+    it('rooms keep their slot across building switches and emptied rooms', () => {
+      const data: FactoryOfficeResponse = {
+        ...baseData,
+        projects: [...baseData.projects!, { id: 'proj-c', product: 'core', name: 'C' }],
+        agents: [
+          { hc: 'a1', provider: 'claude', product: 'core', project: 'proj-fee', state: 'running', machine: 'vps' },
+          { hc: 'b1', provider: 'claude', product: 'core', project: 'proj-supp', state: 'running', machine: 'vps' },
+          { hc: 'c1', provider: 'claude', product: 'core', project: 'proj-c', state: 'running', machine: 'laptop' },
+        ],
+      };
+      const slots = (snap: { rooms: { name: string; slot: number }[] }) => Object.fromEntries(snap.rooms.map((r) => [r.name, r.slot]));
+      const { snapshot: all0 } = mapFactoryDataToSnapshot(data, null, 1_000, false, null);
+      const { snapshot: vps1 } = mapFactoryDataToSnapshot(data, all0, 2_000, false, 'vps');
+      const emptied = { ...data, agents: data.agents!.map((a) => (a.hc === 'a1' ? { ...a, state: 'done' } : a)) };
+      const { snapshot: vps2 } = mapFactoryDataToSnapshot(emptied, vps1, 3_000, false, 'vps');
+      const { snapshot: all3 } = mapFactoryDataToSnapshot(data, vps2, 4_000, false, null);
+      expect(slots(vps2)['Support service']).toBe(slots(all0)['Support service']);
+      expect(slots(all3)).toEqual(slots(all0));
+    });
+
+    it('feed stays factory-wide: switching machine emits no finished items', () => {
+      const { snapshot: onVps } = mapFactoryDataToSnapshot(baseData, null, 1_000, false, 'vps');
+      const { feedItems, snapshot } = mapFactoryDataToSnapshot(baseData, onVps, 2_000, false, 'laptop');
+      expect(snapshot.agents.map((a) => a.name)).toEqual(['3c11']);
+      expect(feedItems).toEqual([]);
+    });
+
+    it('feed stays factory-wide: an agent finishing on another machine still emits while a machine is selected', () => {
+      const { snapshot: first } = mapFactoryDataToSnapshot(baseData, null, 1_000, false, 'laptop');
+      const next: FactoryOfficeResponse = {
+        ...baseData,
+        agents: baseData.agents!.map((a) => (a.hc === '1a3f' ? { ...a, state: 'done' } : a.hc === '2b07' ? { ...a, state: 'waiting' } : a)),
+      };
+      const { feedItems, snapshot } = mapFactoryDataToSnapshot(next, first, 2_000, false, 'laptop');
+      expect(snapshot.agents.map((a) => a.name)).toEqual(['3c11']);
+      const texts = feedItems.map((f) => f.activity?.text);
+      expect(texts).toContain('1a3f finished');
+      expect(texts).toContain('2b07 is waiting on you');
+      expect(feedItems.find((f) => f.agentName === '1a3f')?.roomName).toBe('Billing engine');
+    });
+
+    it('a subagent without a machine follows its parent: absent from a building without the parent', () => {
+      const data: FactoryOfficeResponse = {
+        ...baseData,
+        agents: [...baseData.agents!, { hc: '9z99', provider: 'claude', product: 'core', project: 'proj-fee', state: 'running', parent: '1a3f' }],
+      };
+      const vps = mapFactoryDataToSnapshot(data, null, 1_000, false, 'vps').snapshot;
+      const laptop = mapFactoryDataToSnapshot(data, null, 1_000, false, 'laptop').snapshot;
+      expect(vps.agents.find((a) => a.name === '9z99')?.machine).toBe('vps');
+      expect(laptop.agents.some((a) => a.name === '9z99')).toBe(false);
+      expect(vps.machines!.find((m) => m.id === 'vps')!.agentCount).toBe(3);
+    });
+
+    it('unknown machine id is treated as All', () => {
+      const { snapshot } = mapFactoryDataToSnapshot(baseData, null, 1_000, false, 'ghost');
+      expect(snapshot.meta.selectedMachine).toBe('all');
+      expect(snapshot.meta.offlineMachine).toBeNull();
+      expect(snapshot.agents).toHaveLength(3);
+      expect(snapshot.rooms).toHaveLength(2);
+    });
+
+    it('formatMachineLastSeen formats ISO strings and epoch ms as a relative age, and keeps legacy text', () => {
+      const now = Date.parse('2026-11-08T12:00:00Z');
+      expect(formatMachineLastSeen('2026-11-08T10:00:00Z', now)).toBe('2 h');
+      expect(formatMachineLastSeen('2026-11-08T11:55:00Z', now)).toBe('5 min');
+      expect(formatMachineLastSeen(now - 3 * 86_400_000, now)).toBe('3 d');
+      expect(formatMachineLastSeen('2 h ago', now)).toBe('2 h');
+      expect(formatMachineLastSeen('last seen 4 min ago', now)).toBe('4 min');
+      expect(formatMachineLastSeen(null, now)).toBe('');
+    });
+
+    it('FactorySimulator simulator switcher integration: vps, laptop, desktop, all', () => {
+      const sim = new FactorySimulator({ seed: 42 }, 10_000);
+
+      // Default All
+      const snapAll = sim.snapshot(10_000);
+      expect(snapAll.machines).toHaveLength(3);
+      expect(snapAll.meta.buildingName).toBe('office-sim-1');
+      expect(snapAll.agents.length).toBeGreaterThanOrEqual(18);
+
+      // Laptop
+      sim.setMachine('laptop');
+      const snapLaptop = sim.snapshot(10_000);
+      expect(snapLaptop.meta.buildingName).toBe('laptop');
+      expect(snapLaptop.agents).toHaveLength(4); // includes subagent 3b55, which follows its parent 2a14
+      expect(snapLaptop.agents.some((a) => a.name === '3b55')).toBe(true);
+      expect(snapLaptop.agents.every((a) => a.machine === 'laptop')).toBe(true);
+
+      // Desktop (offline)
+      sim.setMachine('desktop');
+      const snapDesktop = sim.snapshot(10_000);
+      expect(snapDesktop.meta.buildingName).toBe('desktop');
+      expect(snapDesktop.agents).toHaveLength(0);
+      expect(snapDesktop.rooms).toHaveLength(0);
+      expect(snapDesktop.meta.offlineMachine?.id).toBe('desktop');
+
+      // Reset to All
+      sim.setMachine(null);
+      const snapReset = sim.snapshot(10_000);
+      expect(snapReset.meta.buildingName).toBe('office-sim-1');
+      expect(snapReset.agents.length).toBeGreaterThanOrEqual(18);
+    });
   });
 });

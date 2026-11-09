@@ -261,6 +261,7 @@ class AgentView {
   private agentInboxOpenItem: FactoryInboxItem | null = null;
   private agentInboxChoice = '';
   private agentInboxItemId: string | null = null;
+  private machineLine: HTMLElement;
 
   constructor(
     private ctx: UiContext,
@@ -276,6 +277,7 @@ class AgentView {
     this.accEmail = h('span', { class: 'ui-hero__acc-email' });
     this.roomName = h('span');
     this.roomBtn = h('button', { class: 'ui-room-link', type: 'button', on: { click: () => this.last && ctx.select({ type: 'room', id: this.last.roomId }, { focus: true }) } }, this.roomName);
+    this.machineLine = h('div', { class: 'ui-hero__where ui-hero__machine', hidden: true });
     this.character = new CharacterEditor(ctx);
     const heroText = h(
       'div',
@@ -283,6 +285,7 @@ class AgentView {
       h('div', { class: 'ui-hero__line' }, this.name, this.character.button, this.role),
       h('div', { class: 'ui-hero__acc' }, this.accChip, this.accName, this.accProv, this.accEmail),
       h('div', { class: 'ui-hero__where' }, h('span', { class: 'ui-muted', text: i18n('Sala') }), this.roomBtn),
+      this.machineLine,
     );
     this.gone = h('p', { class: 'ui-gone', text: i18n('Este agente já saiu do escritório.'), hidden: true });
 
@@ -529,6 +532,13 @@ class AgentView {
     setHidden(this.accEmail, !accSub);
     setText(this.roomName, room?.name ?? a.roomId);
     setTitle(this.roomBtn, room ? i18n`${room.path}\nClique para ver a sala` : '');
+    if (a.machine) {
+      const label = this.ctx.store.snapshot?.machines?.find((m) => m.id === a.machine)?.label ?? a.machine;
+      setText(this.machineLine, i18n`Máquina: ${label}`);
+      setHidden(this.machineLine, false);
+    } else {
+      setHidden(this.machineLine, true);
+    }
     setHidden(this.gone, !!live);
     this.el.classList.toggle('is-gone', !live);
 

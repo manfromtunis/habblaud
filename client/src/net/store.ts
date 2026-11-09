@@ -74,7 +74,7 @@ export function reconnectDelay(attempt: number): number {
  * Opções do simulador a partir da query string (?speed=2&sessions=6). `sessions=0` vale: escritório vazio. Para
  * capturas de tela: `seed=N` repete o mesmo escritório e `noquota=1` deixa a conta do Codex "sem cota".
  */
-export function mockOptionsFrom(search: string): { speed: number; sessions: number; seed?: number; codexNoQuota?: boolean } {
+export function mockOptionsFrom(search: string): { speed: number; sessions: number; seed?: number; codexNoQuota?: boolean; machine?: string } {
   const params = new URLSearchParams(search);
   const num = (name: string): number | null => {
     const raw = params.get(name);
@@ -85,12 +85,25 @@ export function mockOptionsFrom(search: string): { speed: number; sessions: numb
   const speed = num('speed');
   const sessions = num('sessions');
   const seed = num('seed');
+  const machine = params.get('machine');
   return {
     speed: speed !== null && speed > 0 ? Math.min(speed, 50) : 1,
     sessions: sessions !== null && sessions >= 0 ? Math.min(Math.floor(sessions), 40) : 4,
     ...(seed !== null && seed >= 0 ? { seed: Math.floor(seed) } : {}),
     ...(params.get('noquota') === '1' ? { codexNoQuota: true } : {}),
+    ...(machine ? { machine } : {}),
   };
+}
+
+/** Keeps the address bar's ?machine= in step with the selection (no history entry). */
+function writeMachineParam(machine: string | null): void {
+  if (typeof location === 'undefined' || typeof history === 'undefined') return;
+  try {
+    const url = new URL(location.href);
+    if (machine) url.searchParams.set('machine', machine);
+    else url.searchParams.delete('machine');
+    history.replaceState(null, '', url.toString());
+  } catch {}
 }
 
 export class OfficeStore {
@@ -100,6 +113,7 @@ export class OfficeStore {
   connection: ConnectionState = 'connecting';
   readonly mock: boolean;
   readonly factory: boolean;
+  selectedMachine: string | null = null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private listeners = new Map<keyof StoreEvents, Set<(value: any) => void>>();
@@ -129,6 +143,7 @@ export class OfficeStore {
   constructor(opts: StoreOptions = {}) {
     const search = opts.search ?? (typeof location !== 'undefined' ? location.search : '');
     const params = new URLSearchParams(search);
+    this.selectedMachine = params.get('machine');
     const hasFactoryParam = params.has('factory');
     const isFactoryBuild =
       typeof (globalThis as unknown as { __FACTORY_DEFAULT__?: boolean }).__FACTORY_DEFAULT__ !== 'undefined' ||
@@ -194,6 +209,21 @@ export class OfficeStore {
   /** Quando será a próxima tentativa automática de reconexão (epoch ms), ou null. */
   get nextRetryAt(): number | null {
     return this.retryAt;
+  }
+
+  setMachine(id: string | null): void {
+    const next = id === 'all' || !id ? null : id;
+    if (this.selectedMachine === next) return;
+    this.selectedMachine = next;
+
+    writeMachineParam(next);
+
+    if (this.mockSim instanceof FactorySimulator) {
+      this.mockSim.setMachine(next);
+      this.applySnapshot(this.mockSim.snapshot());
+    } else if (this.factory && !this.mock) {
+      void this.pollFactoryLive();
+    }
   }
 
   agent(id: string): AgentInfo | undefined {
@@ -516,6 +546,11 @@ export class OfficeStore {
   }
 
   private setSnapshot(snap: OfficeSnapshot): void {
+    // A machine id the factory does not know (stale link) means All: forget it and clean the URL.
+    if (this.selectedMachine && snap.machines?.length && !snap.machines.some((m) => m.id === this.selectedMachine)) {
+      this.selectedMachine = null;
+      writeMachineParam(null);
+    }
     this.snapshot = snap;
     this.agentIndex = new Map(snap.agents.map((a) => [a.id, a]));
     this.roomIndex = new Map(snap.rooms.map((r) => [r.id, r]));
@@ -677,7 +712,7 @@ export class OfficeStore {
       data.answers = combinedAnswers;
 
       const now = Date.now();
-      const { snapshot, feedItems, notices } = mapFactoryDataToSnapshot(data, this.snapshot, now, false);
+      const { snapshot, feedItems, notices } = mapFactoryDataToSnapshot(data, this.snapshot, now, false, this.selectedMachine);
       this.applySnapshot(snapshot);
       this.applyFeed(feedItems);
       for (const n of notices) {
