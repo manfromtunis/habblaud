@@ -9,9 +9,9 @@ export interface PublicAgent {
   id: string;
   parent: string | null;
   product: string;
-  state: 'running' | 'stalled' | 'done';
+  state: 'running' | 'waiting' | 'stalled';
   provider: string;
-  since?: string;
+  since?: string | null;
   label: string;
 }
 
@@ -23,14 +23,14 @@ export interface PublicFeed {
 
 /** Public feed -> the factory response shape: one room per product, no inbox, nothing to message. */
 export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
-  const agents: FactoryApiAgent[] = feed.agents.filter((a) => a.product in feed.products).map((a) => ({
+  const agents: FactoryApiAgent[] = feed.agents.filter((a) => Object.hasOwn(feed.products, a.product)).map((a) => ({
     hc: a.id,
     parent: a.parent ?? undefined,
     product: a.product,
     project: a.product,
     state: a.state,
     provider: a.provider,
-    since: a.since,
+    since: a.since ?? undefined,
     task: a.label,
     title: a.label,
     activityText: a.label,

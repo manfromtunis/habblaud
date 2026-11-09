@@ -48,6 +48,22 @@ describe('publicSnapshot', () => {
     expect(sub?.parentId).toBe('factory:agent:aaaa000001');
   });
 
+  it('shows waiting agents waiting and stalled agents idle', () => {
+    const t = Date.parse('2026-11-09T10:00:00Z');
+    const agents = [
+      { id: 'eeee000001', parent: null, product: 'bakchich', state: 'waiting' as const, provider: 'Claude', since: null, label: 'Building a feature for Bakchich' },
+      { id: 'eeee000002', parent: null, product: 'bakchich', state: 'stalled' as const, provider: 'Claude', label: 'Building a feature for Bakchich' },
+    ];
+    const s = publicSnapshot({ ...feed, agents }, null, t);
+    expect(s.agents.find((a) => a.id.endsWith('eeee000001'))?.status).toBe('waiting');
+    expect(s.agents.find((a) => a.id.endsWith('eeee000002'))?.status).toBe('idle');
+  });
+
+  it('ignores products named after Object prototype keys', () => {
+    const stray = { id: 'ffff000001', parent: null, product: 'constructor', state: 'running' as const, provider: 'Claude', label: 'x' };
+    expect(publicSnapshot({ ...feed, agents: [stray] }, null, Date.now()).agents).toHaveLength(0);
+  });
+
   it('empty agents gives an empty office', () => {
     expect(publicSnapshot({ ...feed, agents: [] }, null, Date.now()).agents).toHaveLength(0);
   });

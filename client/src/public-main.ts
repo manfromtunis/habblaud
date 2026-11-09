@@ -10,6 +10,8 @@ import { DEFAULT_WORLD_OPTIONS } from './world/api';
 import { publicSnapshot, type PublicFeed } from '../../shared/demo/public';
 
 const POLL_MS = 300_000;
+const STALE_MS = 30 * 60_000; // two missed builds: stop claiming LIVE
+const FOCUS_GAP_MS = 30_000;
 const FEED_URL = 'office-public.json';
 
 function el(tag: string, cls: string, text?: string): HTMLElement {
@@ -74,10 +76,17 @@ function show(feed: PublicFeed): void {
   providers.clear();
   for (const a of feed.agents) providers.set(`factory:agent:${a.id}`, a.provider);
   store.show(publicSnapshot(feed, store.snapshot, Date.now()));
-  const present = feed.agents.filter((a) => a.state !== 'done');
-  const working = present.filter((a) => a.state === 'running').length;
-  live.textContent = present.length ? `● LIVE  ${present.length} agents in the office, ${working} working` : '● LIVE  nobody in right now';
-  empty.hidden = present.length > 0;
+  const agents = store.snapshot?.agents ?? [];
+  const present = agents.length;
+  const working = agents.filter((a) => a.status === 'working').length;
+  const built = Date.parse(feed.builtAt);
+  const stale = !Number.isFinite(built) || Date.now() - built > STALE_MS;
+  const head = stale
+    ? `Last update ${Number.isFinite(built) ? new Date(built).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'unknown'}`
+    : '● LIVE';
+  live.textContent = present ? `${head}  ${present} agents in the office, ${working} working` : `${head}  nobody in right now`;
+  live.classList.toggle('pub-live--stale', stale);
+  empty.hidden = present > 0;
   if (cardFor && !store.agent(cardFor)) {
     card.hidden = true; // that agent left the office
     cardFor = null;
@@ -93,7 +102,10 @@ function isFeed(v: unknown): v is PublicFeed {
   return !!f && typeof f === 'object' && Array.isArray(f.agents) && !!f.products && typeof f.products === 'object';
 }
 
+let lastPoll = 0;
+
 async function poll(): Promise<void> {
+  lastPoll = Date.now();
   try {
     const res = await fetch(FEED_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error(String(res.status));
@@ -108,4 +120,6 @@ async function poll(): Promise<void> {
 
 void poll();
 setInterval(() => void poll(), POLL_MS);
-addEventListener('focus', () => void poll());
+addEventListener('focus', () => {
+  if (Date.now() - lastPoll > FOCUS_GAP_MS) void poll();
+});

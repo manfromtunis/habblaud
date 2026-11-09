@@ -13,6 +13,7 @@
 }
 .pub-title { font-weight: 600; font-size: 18px; }
 .pub-live { color: #8be28b; }
+.pub-live--stale { color: #c9c9c9; }
 
 .pub-foot { position: fixed; bottom: 12px; left: 0; right: 0; text-align: center; }
 .pub-foot a {
