@@ -1,4 +1,4 @@
-// Public Office (PROTOTYPE): the public feed (office-public.json) mapped onto the factory adapter.
+// Public Office: the public feed (office-public.json) mapped onto the factory adapter.
 // The public feed only carries id, parent, product, state, provider, since and a generic label:
 // nothing here can name a session, a project, a thread or a person.
 import type { OfficeSnapshot } from '../types';
@@ -51,6 +51,7 @@ export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
 export function publicSnapshot(feed: PublicFeed, prev: OfficeSnapshot | null, now: number): OfficeSnapshot {
   const { snapshot } = mapFactoryDataToSnapshot(publicToFactory(feed), prev, now, false);
   delete (snapshot as { inbox?: unknown }).inbox; // no inbox marker in the reception
+  snapshot.meta.buildingName = 'Bakchich';
   const used = new Set<string>();
   for (const a of snapshot.agents) {
     const person = pickName(a.id, used);
@@ -61,38 +62,4 @@ export function publicSnapshot(feed: PublicFeed, prev: OfficeSnapshot | null, no
     a.gitBranch = undefined;
   }
   return snapshot;
-}
-
-const LABELS = ['Building a feature for {p}', 'Fixing a bug on {p}', 'Writing tests for {p}', 'Cleaning up code in {p}'];
-
-/** PROTOTYPE ONLY: makes the sample feed move so the scene looks live (one change per tick). */
-export function nextTick(feed: PublicFeed, tick: number): PublicFeed {
-  const agents = feed.agents.map((a) => ({ ...a }));
-  const products = Object.keys(feed.products);
-  const roll = tick % 4;
-  const mains = agents.filter((a) => !a.parent);
-  if (roll === 0 && mains.length > 2) {
-    // someone finishes and leaves
-    const gone = mains[tick % mains.length];
-    return { ...feed, agents: agents.filter((a) => a.id !== gone.id && a.parent !== gone.id) };
-  }
-  if (roll === 1 || mains.length <= 2) {
-    // someone arrives
-    const product = products[tick % products.length];
-    const name = feed.products[product].name;
-    agents.push({
-      id: `sim${tick}`,
-      parent: null,
-      product,
-      state: 'running',
-      provider: ['Claude', 'Antigravity', 'OpenCode'][tick % 3],
-      since: new Date().toISOString(),
-      label: LABELS[tick % LABELS.length].replace('{p}', name),
-    });
-    return { ...feed, agents };
-  }
-  // someone changes state (working <-> coffee break)
-  const a = agents[tick % agents.length];
-  a.state = a.state === 'running' ? 'stalled' : 'running';
-  return { ...feed, agents };
 }

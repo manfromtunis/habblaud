@@ -1,4 +1,4 @@
-/* Public Office (PROTOTYPE) */
+/* Public Office */
 #ui { font-family: 'Pixelify Sans', system-ui, sans-serif; color: #f1ead8; }
 #ui > .pub-head, #ui > .pub-foot { pointer-events: none; }
 #world { cursor: default; }
@@ -35,37 +35,6 @@
   .pub-live { font-size: 13px; }
   .pub-foot a { font-size: 13px; }
 }
-
-/* Phone-width preview (prototype toolbar) */
-body.pub-phone #world, body.pub-phone #ui {
-  width: 390px !important; left: 50% !important; right: auto !important; transform: translateX(-50%);
-  border-left: 2px solid #444; border-right: 2px solid #444;
-}
-body.pub-phone .pub-head, body.pub-phone .pub-foot, body.pub-phone .pub-empty {
-  position: absolute;
-}
-body.pub-phone { background: #05060a; }
-
-/* Prototype toolbar */
-.proto-bar {
-  position: fixed; top: 64px; right: 12px; z-index: 50; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
-  background: #fff3c4; color: #1d1d1d; border: 2px dashed #c08a00; border-radius: 6px; padding: 6px 8px;
-  font: 13px system-ui, sans-serif; max-width: calc(100vw - 24px);
-}
-.proto-bar button { font: inherit; padding: 4px 8px; border: 1px solid #c08a00; background: #fff; border-radius: 4px; cursor: pointer; }
-.proto-bar button:hover { background: #ffe58a; }
-
-/* Mock company site around the embed */
-.proto-site { position: fixed; inset: 0; z-index: 60; background: #f6f4ef; color: #1b1b1b; overflow: auto; font: 16px system-ui, sans-serif; }
-.proto-site__nav { display: flex; gap: 20px; align-items: center; padding: 14px 24px; background: #4670cf; color: #fff; }
-.proto-site__nav b { margin-right: auto; }
-.proto-site__nav button { font: inherit; background: #fff; color: #4670cf; border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
-.proto-site__body { max-width: 940px; margin: 32px auto; padding: 0 20px; }
-.proto-site__body iframe { width: 100%; max-width: 900px; aspect-ratio: 9 / 5; height: auto; border: 0; border-radius: 8px; background: #12151d; }
-.proto-site__small { font-size: 13px; color: #666; }
-
-.proto-bar button { color: #1d1d1d; }
-@media (max-width: 600px) { .proto-bar { top: auto; bottom: 56px; left: 12px; right: 12px; } }
 
 .pub-card {
   position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%);

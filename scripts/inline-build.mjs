@@ -6,7 +6,7 @@ import os from 'node:os';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const root = resolve(__dirname, '..');
-const distClient = join(root, 'dist/client');
+const distClient = join(root, process.argv[3] ?? 'dist/client');
 const publicAssets = join(root, 'client/public/assets');
 let rawTarget = process.argv[2] ?? 'dist/factory-office.html';
 if (rawTarget.startsWith('~/')) {
@@ -85,7 +85,7 @@ if (existsSync(manifestPath)) {
 }
 
 // 2. Read index.html
-const indexHtmlPath = join(distClient, 'index.html');
+const indexHtmlPath = join(distClient, process.argv[4] ?? 'index.html');
 const indexHtml = readFileSync(indexHtmlPath, 'utf8');
 
 // 3. Find and inline CSS
