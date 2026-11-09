@@ -1,0 +1,48 @@
+/* Public Office */
+#ui { font-family: 'Pixelify Sans', system-ui, sans-serif; color: #f1ead8; }
+#ui > .pub-head, #ui > .pub-foot { pointer-events: none; }
+#world { cursor: default; }
+
+.pub-head {
+  position: fixed; top: 12px; left: 12px; right: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.pub-title, .pub-live {
+  background: rgba(18, 21, 29, 0.85); border: 2px solid #2b3142; border-radius: 6px;
+  padding: 6px 12px; font-size: 16px; line-height: 1.2;
+}
+.pub-title { font-weight: 600; font-size: 18px; }
+.pub-live { color: #8be28b; }
+.pub-live--stale { color: #c9c9c9; }
+
+.pub-foot { position: fixed; bottom: 12px; left: 0; right: 0; text-align: center; }
+.pub-foot a {
+  pointer-events: auto; display: inline-block; color: #f1ead8; text-decoration: none;
+  background: rgba(18, 21, 29, 0.85); border: 2px solid #2b3142; border-radius: 6px; padding: 6px 14px; font-size: 15px;
+}
+.pub-foot a:hover { border-color: #f08a3c; }
+
+.pub-empty {
+  position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; background: rgba(18, 21, 29, 0.88); text-align: center; padding: 16px;
+}
+.pub-empty[hidden] { display: none; }
+.pub-empty img { width: min(480px, 90vw); image-rendering: pixelated; }
+.pub-empty__title { margin: 8px 0 0; font-size: 22px; }
+.pub-empty__text { margin: 0; font-size: 16px; opacity: 0.8; }
+
+@media (max-width: 480px) {
+  .pub-title { font-size: 15px; }
+  .pub-live { font-size: 13px; }
+  .pub-foot a { font-size: 13px; }
+}
+
+.pub-card {
+  position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 2px; min-width: 220px; max-width: calc(100vw - 32px);
+  background: rgba(18, 21, 29, 0.92); border: 2px solid #f08a3c; border-radius: 6px; padding: 8px 14px; text-align: center;
+}
+.pub-card[hidden] { display: none; }
+.pub-card__name { font-size: 17px; }
+.pub-card__label { font-size: 15px; }
+.pub-card__meta { font-size: 13px; opacity: 0.7; }

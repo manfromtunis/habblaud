@@ -40,7 +40,8 @@
     "codex:uninstall": "tsx scripts/codex-install.ts uninstall",
     "codex:status": "tsx scripts/codex-install.ts status",
     "codex:bridge": "tsx scripts/codex-bridge.ts",
-    "release": "tsx scripts/release.ts"
+    "release": "tsx scripts/release.ts",
+    "build:public": "vite build --config vite.public.config.ts && node scripts/inline-build.mjs dist/public-office.html dist/public public.html"
   },
   "devDependencies": {
     "@fontsource/pixelify-sans": "^5.3.0",

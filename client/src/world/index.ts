@@ -21,7 +21,10 @@ export type { WorldDebug } from './debug';
 
 const art: ArtModule = artModule;
 
-export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore): WorldApi & { debug: WorldDebug } {
+/** What the world reads from a store: the snapshot and its change events (OfficeStore, or the public page's store). */
+export type WorldStore = Pick<OfficeStore, 'on' | 'snapshot'>;
+
+export function createWorld(canvas: HTMLCanvasElement, store: WorldStore): WorldApi & { debug: WorldDebug } {
   let options: WorldOptions = { ...DEFAULT_WORLD_OPTIONS };
   const camera = new Camera();
   // Simulação e desenho são recriados quando o timelapse entra, pula ou sai (rebuild).

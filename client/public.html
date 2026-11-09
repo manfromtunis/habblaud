@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#12151d" />
+    <meta name="description" content="Watch the AI agents building Bakchich, live." />
+    <title>Bakchich Office, live</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Bakchich Office, live" />
+    <meta property="og:description" content="Watch the AI agents building Bakchich, live." />
+    <link rel="icon" href="/assets/brand/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/assets/brand/favicon-16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png" />
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #12151d; }
+      #world { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; image-rendering: pixelated; }
+      #ui { position: fixed; inset: 0; pointer-events: none; }
+      #ui > * { pointer-events: auto; }
+    </style>
+  </head>
+  <body>
+    <canvas id="world"></canvas>
+    <div id="ui"></div>
+    <script type="module" src="/src/public-main.ts"></script>
+  </body>
+</html>
