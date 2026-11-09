@@ -44,4 +44,4 @@
 .pub-card[hidden] { display: none; }
 .pub-card__name { font-size: 17px; }
 .pub-card__label { font-size: 15px; }
-.pub-card__meta { font-size: 13px; opacity: 0.7; text-transform: capitalize; }
+.pub-card__meta { font-size: 13px; opacity: 0.7; }

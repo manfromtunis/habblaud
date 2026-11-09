@@ -150,6 +150,18 @@ jsContent = jsContent.replace(/[`"']assets\/([^`"']+)['"`]/g, (match, path) => {
 const targetDir = dirname(targetFile);
 mkdirSync(targetDir, { recursive: true });
 
+// Head text: the private build keeps its fixed title; a named input page (argv[4], e.g. public.html)
+// brings its own title, description and Open Graph tags.
+const escAttr = (v) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+let pageTitle = 'Factory Office';
+let pageDescription = 'Factory Office — virtual pixel-art office for software factory agents';
+let ogTags = '';
+if (process.argv[4]) {
+  pageTitle = /<title>([^<]*)<\/title>/.exec(indexHtml)?.[1] ?? pageTitle;
+  pageDescription = /<meta name="description" content="([^"]*)"/.exec(indexHtml)?.[1] ?? pageDescription;
+  ogTags = (indexHtml.match(/<meta property="og:[a-z_:]+" content="[^"]*" \/>/g) ?? []).join('\n    ');
+}
+
 const favicon32 = assetUrls['brand/favicon-32.png'] || '';
 const favicon16 = assetUrls['brand/favicon-16.png'] || '';
 const appleTouch = assetUrls['brand/apple-touch-icon.png'] || '';
@@ -161,8 +173,9 @@ const standaloneHtml = `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#12151d" />
-    <meta name="description" content="Factory Office — virtual pixel-art office for software factory agents" />
-    <title>Factory Office</title>
+    <meta name="description" content="${escAttr(pageDescription)}" />
+    <title>${escAttr(pageTitle)}</title>
+    ${ogTags}
     ${favicon32 ? `<link rel="icon" href="${favicon32}" type="image/png" sizes="32x32" />` : ''}
     ${favicon16 ? `<link rel="icon" href="${favicon16}" type="image/png" sizes="16x16" />` : ''}
     ${appleTouch ? `<link rel="apple-touch-icon" href="${appleTouch}" />` : ''}

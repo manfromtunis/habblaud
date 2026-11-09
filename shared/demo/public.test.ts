@@ -51,4 +51,22 @@ describe('publicSnapshot', () => {
   it('empty agents gives an empty office', () => {
     expect(publicSnapshot({ ...feed, agents: [] }, null, Date.now()).agents).toHaveLength(0);
   });
+
+  it('keeps names across polls when a newcomer arrives', () => {
+    const t = Date.parse('2026-11-09T10:00:00Z');
+    const first = publicSnapshot(feed, null, t);
+    const names = new Map(first.agents.map((a) => [a.id, a.name]));
+    const newcomer = { id: 'cccc000001', parent: null, product: 'bakchich', state: 'running' as const, provider: 'Claude', since: '2026-11-09T10:01:00Z', label: 'Fixing a bug on Bakchich' };
+    const second = publicSnapshot({ ...feed, agents: [newcomer, ...feed.agents] }, first, t + 300_000);
+    for (const [id, name] of names) expect(second.agents.find((a) => a.id === id)?.name).toBe(name);
+    const all = second.agents.map((a) => a.name);
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('drops an agent whose product is not in products', () => {
+    const stray = { id: 'dddd000001', parent: null, product: 'secret-project', state: 'running' as const, provider: 'Claude', label: 'Working on X' };
+    const snap = publicSnapshot({ ...feed, agents: [...feed.agents, stray] }, null, Date.now());
+    expect(snap.agents.some((a) => a.id.endsWith('dddd000001'))).toBe(false);
+    expect(snap.rooms.some((r) => r.name.includes('secret-project'))).toBe(false);
+  });
 });

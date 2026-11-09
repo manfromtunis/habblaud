@@ -23,7 +23,7 @@ export interface PublicFeed {
 
 /** Public feed -> the factory response shape: one room per product, no inbox, nothing to message. */
 export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
-  const agents: FactoryApiAgent[] = feed.agents.map((a) => ({
+  const agents: FactoryApiAgent[] = feed.agents.filter((a) => a.product in feed.products).map((a) => ({
     hc: a.id,
     parent: a.parent ?? undefined,
     product: a.product,
@@ -52,9 +52,15 @@ export function publicSnapshot(feed: PublicFeed, prev: OfficeSnapshot | null, no
   const { snapshot } = mapFactoryDataToSnapshot(publicToFactory(feed), prev, now, false);
   delete (snapshot as { inbox?: unknown }).inbox; // no inbox marker in the reception
   snapshot.meta.buildingName = 'Bakchich';
+  // A character keeps the name it had on the previous poll; only newcomers draw from the pool.
+  const before = new Map((prev?.agents ?? []).map((a) => [a.id, { name: a.name, look: a.look }]));
   const used = new Set<string>();
   for (const a of snapshot.agents) {
-    const person = pickName(a.id, used);
+    const kept = before.get(a.id);
+    if (kept) used.add(kept.name);
+  }
+  for (const a of snapshot.agents) {
+    const person = before.get(a.id) ?? pickName(a.id, used);
     used.add(person.name);
     a.name = person.name;
     a.look = person.look;
