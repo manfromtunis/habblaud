@@ -59,6 +59,17 @@ describe('publicSnapshot', () => {
     expect(s.agents.find((a) => a.id.endsWith('eeee000002'))?.status).toBe('idle');
   });
 
+  it('shows recently finished agents idle at their desk, not working', () => {
+    const t = Date.parse('2026-11-09T10:00:00Z');
+    const agents = [
+      { id: 'ffff000001', parent: null, product: 'bakchich', state: 'idle' as const, provider: 'Claude', since: '2026-11-09T07:00:00Z', label: 'Between tasks on Bakchich' },
+    ];
+    const s = publicSnapshot({ ...feed, agents }, null, t);
+    const a = s.agents.find((x) => x.id.endsWith('ffff000001'));
+    expect(a?.status).toBe('idle');
+    expect(a?.activity?.text).toBe('Between tasks on Bakchich');
+    expect(a?.activity?.error).toBe(false);
+  });
   it('ignores products named after Object prototype keys', () => {
     const stray = { id: 'ffff000001', parent: null, product: 'constructor', state: 'running' as const, provider: 'Claude', label: 'x' };
     expect(publicSnapshot({ ...feed, agents: [stray] }, null, Date.now()).agents).toHaveLength(0);

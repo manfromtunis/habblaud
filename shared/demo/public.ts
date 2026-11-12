@@ -9,7 +9,7 @@ export interface PublicAgent {
   id: string;
   parent: string | null;
   product: string;
-  state: 'running' | 'waiting' | 'stalled';
+  state: 'running' | 'waiting' | 'stalled' | 'idle'; // idle: finished in the last hours, sitting at the desk
   provider: string;
   since?: string | null;
   label: string;
