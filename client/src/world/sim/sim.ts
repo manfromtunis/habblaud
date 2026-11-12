@@ -474,14 +474,23 @@ export class Sim {
     ch.sortY = s.sortY ?? null;
   }
 
-  /** Reserva mesa (ou banqueta/ponto em pé) na sala do personagem. */
+  /** Reserva mesa (ou banqueta/ponto em pé) na sala do personagem. Quem trabalha sai da banqueta para uma mesa. */
   private assignHome(ch: Character): void {
-    if (ch.homeSpot && this.spots.get(ch.homeSpot) && this.spots.ownerOf(ch.homeSpot) === ch.id) return;
-    ch.homeSpot = null;
+    const busy = ch.mode !== 'idle';
+    const home = ch.homeSpot && this.spots.ownerOf(ch.homeSpot) === ch.id ? this.spots.get(ch.homeSpot) : undefined;
+    if (home && (home.kind === 'desk' || !busy)) return;
     const room = this.rooms.get(ch.roomId);
-    if (!room || !room.present) return;
+    if (!room || !room.present) {
+      if (!home) ch.homeSpot = null;
+      return;
+    }
     let seat = chooseSeat(room.layout.spots, (id) => this.spots.isFree(id, ch.id), ch.info.kind);
-    if (seat?.kind !== 'desk' && ch.info.status !== 'idle') seat = this.takeIdleDesk(room.layout.spots, ch) ?? seat;
+    if (seat?.kind !== 'desk' && busy) seat = this.takeIdleDesk(room.layout.spots, ch) ?? seat;
+    if (home) {
+      if (seat?.kind !== 'desk') return; // already seated, nothing better
+      this.spots.release(home.id, ch.id);
+    }
+    ch.homeSpot = null;
     if (seat && this.spots.reserve(seat.id, ch.id)) ch.homeSpot = seat.id;
   }
 
@@ -490,7 +499,7 @@ export class Sim {
     for (const s of spots) {
       if (s.kind !== 'desk') continue;
       const other = this.chars.get(this.spots.ownerOf(s.id) ?? '');
-      if (!other || other === ch || other.info.status !== 'idle' || other.homeSpot !== s.id) continue;
+      if (!other || other === ch || other.mode !== 'idle' || other.homeSpot !== s.id) continue;
       this.spots.release(s.id, other.id);
       other.homeSpot = null;
       this.interrupt(other);
@@ -1712,7 +1721,8 @@ export class Sim {
     for (const e of this.elevators) e.reset();
     this.machineUntil.clear();
     this.social.reset(now);
-    for (const ch of [...this.chars.values()]) {
+    // busy first: a desk taken from an idle agent is settled before that agent is placed
+    for (const ch of [...this.chars.values()].sort((a, b) => Number(a.mode === 'idle') - Number(b.mode === 'idle'))) {
       for (let guard = 0; guard < 60 && !ch.gone; guard++) {
         if (!ch.step) ch.step = ch.queue.shift() ?? null;
         if (!ch.step) break;
