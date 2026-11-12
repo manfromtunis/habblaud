@@ -343,6 +343,23 @@ describe('simulação do escritório', () => {
     expect(homeless.some((c) => !!c.homeSpot && c.atSpot === c.homeSpot)).toBe(true);
   });
 
+  it('a working agent with no free desk takes one from an idle agent, who moves off it', () => {
+    const sim = newSim();
+    const clock = { now: T0 };
+    const idle = Array.from({ length: 9 }, (_, i) => agent(`i${i}`, '/a', 'idle'));
+    sim.applySnapshot(snap([room('/a', 0)], idle), clock.now);
+    run(sim, clock, 20);
+    const desk = (c: Character) => sim.rooms.get('/a')!.layout.spots.find((s) => s.id === c.homeSpot)?.kind === 'desk';
+    expect([...sim.chars.values()].filter(desk).length).toBeGreaterThan(0);
+    sim.applySnapshot(snap([room('/a', 0)], [...idle, agent('w', '/a', 'working')], 2), clock.now);
+    run(sim, clock, 60, () => !!sim.chars.get('w')!.homeSpot && sim.chars.get('w')!.atSpot === sim.chars.get('w')!.homeSpot);
+    const w = sim.chars.get('w')!;
+    expect(desk(w)).toBe(true);
+    expect(w.atSpot).toBe(w.homeSpot);
+    const owners = [...sim.chars.values()].filter((c) => c.homeSpot === w.homeSpot);
+    expect(owners.map((c) => c.id)).toEqual(['w']);
+  });
+
   it('delegar: conversa virado para a porta com 💬 (a mão levantada é só para "precisa de você")', () => {
     const sim = newSim();
     const clock = { now: T0 };

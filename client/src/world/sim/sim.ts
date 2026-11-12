@@ -480,8 +480,23 @@ export class Sim {
     ch.homeSpot = null;
     const room = this.rooms.get(ch.roomId);
     if (!room || !room.present) return;
-    const seat = chooseSeat(room.layout.spots, (id) => this.spots.isFree(id, ch.id), ch.info.kind);
+    let seat = chooseSeat(room.layout.spots, (id) => this.spots.isFree(id, ch.id), ch.info.kind);
+    if (seat?.kind !== 'desk' && ch.info.status !== 'idle') seat = this.takeIdleDesk(room.layout.spots, ch) ?? seat;
     if (seat && this.spots.reserve(seat.id, ch.id)) ch.homeSpot = seat.id;
+  }
+
+  /** No free desk for a busy agent: an idle agent gives up its desk and moves to a stool. */
+  private takeIdleDesk(spots: readonly SpotDef[], ch: Character): SpotDef | null {
+    for (const s of spots) {
+      if (s.kind !== 'desk') continue;
+      const other = this.chars.get(this.spots.ownerOf(s.id) ?? '');
+      if (!other || other === ch || other.info.status !== 'idle' || other.homeSpot !== s.id) continue;
+      this.spots.release(s.id, other.id);
+      other.homeSpot = null;
+      this.interrupt(other);
+      return s;
+    }
+    return null;
   }
 
   private pickElevator(ch: Character): Elevator {
