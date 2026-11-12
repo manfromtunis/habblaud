@@ -600,7 +600,7 @@ export interface FactoryApiAgent {
   via?: string;
   product?: string;
   project?: string | null;
-  state?: string; // running, waiting, failed, quota, done, stalled, unknown
+  state?: string; // running, waiting, failed, quota, done, stalled, unknown, idle (public feed)
   t3Status?: string;
   since?: string | number;
   started_at?: string | number;
@@ -828,7 +828,7 @@ export function mapFactoryDataToSnapshot(
     else if (row.state === 'stalled' || row.state === 'quota') status = 'idle';
     else if (row.state === 'failed') status = 'idle'; // a failed run is not working: the error activity marks it
     else if (row.state === 'running') status = 'working';
-    else if (row.state === 'unknown') status = 'idle';
+    else if (row.state === 'unknown' || row.state === 'idle') status = 'idle';
 
     // Activity: task before t3Status
     const actText = row.activityText || row.task || row.t3Status || (
@@ -839,12 +839,12 @@ export function mapFactoryDataToSnapshot(
     );
     const actKind: Activity['kind'] = row.activityKind || (
       status === 'waiting' ? 'ask'
-      : (row.state === 'quota' || row.state === 'stalled') ? 'wait'
+      : (row.state === 'quota' || row.state === 'stalled' || row.state === 'idle') ? 'wait'
       : 'edit'
     );
     const actIcon = row.activityIcon || (
       status === 'waiting' ? '✋'
-      : row.state === 'quota' ? '☕'
+      : row.state === 'quota' || row.state === 'idle' ? '☕'
       : row.state === 'stalled' ? '💤'
       : row.state === 'failed' ? '⚠️'
       : '✏️'

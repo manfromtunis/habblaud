@@ -84,7 +84,7 @@ function show(feed: PublicFeed): void {
   const head = stale
     ? `Last update ${Number.isFinite(built) ? new Date(built).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'unknown'}`
     : '● LIVE';
-  live.textContent = present ? `${head}  ${present} agents in the office, ${working} working` : `${head}  nobody in right now`;
+  live.textContent = present ? `${head}  ${present} ${present === 1 ? 'agent' : 'agents'} in the office, ${working} working` : `${head}  nobody in right now`;
   live.classList.toggle('pub-live--stale', stale);
   empty.hidden = present > 0;
   if (cardFor && !store.agent(cardFor)) {
