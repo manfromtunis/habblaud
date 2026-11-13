@@ -15,6 +15,8 @@ describe("parseLook", () => {
     expect(parseLook("About a day")).toBeNull();
     expect(parseLook({ fit: "x" })).toBeNull();
     expect(parseLook({ fit: 1, effort: "x" })).toBeNull();
+    expect(parseLook({ fit: "", effort: "x" })).toBeNull();
+    expect(parseLook({ fit: "x", effort: "  " })).toBeNull();
   });
 
   it("caps each line at 200 characters", () => {

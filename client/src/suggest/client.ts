@@ -19,7 +19,7 @@ export interface FirstLook {
 export function parseLook(v: unknown): FirstLook | null {
   if (!v || typeof v !== "object") return null;
   const { fit, effort } = v as Record<string, unknown>;
-  if (typeof fit !== "string" || typeof effort !== "string") return null;
+  if (typeof fit !== "string" || typeof effort !== "string" || !fit.trim() || !effort.trim()) return null;
   return { fit: fit.slice(0, 200), effort: effort.slice(0, 200) };
 }
 
@@ -55,10 +55,12 @@ export async function postIdea(
     email: email && email.trim() ? email.trim() : undefined,
     website,
   };
+  // the service waits up to 3 s for the AI first look; never leave "Sending..." stuck longer than this
   const res = await fetch("/suggest/idea", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw await httpError(res, "Request failed");
   const data = (await res.json()) as { id: number | string | null; public?: boolean; product?: string; text?: string; status?: string; look?: unknown };

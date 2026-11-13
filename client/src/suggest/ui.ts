@@ -556,7 +556,12 @@ export class SuggestManager {
 
       this.triggerAgentWalk(ideaId, product, text, res);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to submit suggestion";
+      const msg =
+        err instanceof Error && err.name === "TimeoutError"
+          ? "The office took too long to answer. Your idea may be saved: check Latest ideas before sending it again."
+          : err instanceof Error
+            ? err.message
+            : "Failed to submit suggestion";
       this.suggestError.textContent = msg;
       this.suggestError.style.display = "block";
     } finally {
