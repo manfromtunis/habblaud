@@ -4,93 +4,62 @@ const OWN_IDEAS_KEY = "office-own-ideas";
 const HELD_IDEAS_KEY = "office-held-ideas";
 const VOTED_IDEAS_KEY = "office-voted-ideas";
 
-export function loadOwnIdeaIds(): Set<string> {
+// localStorage can be missing or throw (private mode, blocked site data): every access is guarded.
+function readJsonArray(key: string): unknown[] {
   try {
-    if (typeof localStorage === "undefined") return new Set();
-    const raw = localStorage.getItem(OWN_IDEAS_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return new Set(parsed.map(String));
+    if (typeof localStorage === "undefined") return [];
+    const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    // fallback
+    return [];
   }
-  return new Set();
+}
+
+function writeJson(key: string, value: unknown): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+}
+
+export function loadOwnIdeaIds(): Set<string> {
+  return new Set(readJsonArray(OWN_IDEAS_KEY).map(String));
 }
 
 export function saveOwnIdeaId(id: string | number): void {
-  try {
-    if (typeof localStorage === "undefined") return;
-    const set = loadOwnIdeaIds();
-    set.add(String(id));
-    localStorage.setItem(OWN_IDEAS_KEY, JSON.stringify([...set]));
-  } catch {
-    // ignore
-  }
+  const set = loadOwnIdeaIds();
+  set.add(String(id));
+  writeJson(OWN_IDEAS_KEY, [...set]);
 }
 
 export function loadHeldIdeas(): Idea[] {
-  try {
-    if (typeof localStorage === "undefined") return [];
-    const raw = localStorage.getItem(HELD_IDEAS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed as Idea[];
-  } catch {
-    // ignore
-  }
-  return [];
+  return readJsonArray(HELD_IDEAS_KEY) as Idea[];
 }
 
 export function saveHeldIdea(idea: Idea): void {
-  try {
-    if (typeof localStorage === "undefined") return;
-    const list = loadHeldIdeas();
-    const idStr = String(idea.id);
-    if (!list.some((i) => String(i.id) === idStr)) {
-      list.push(idea);
-      localStorage.setItem(HELD_IDEAS_KEY, JSON.stringify(list));
-    }
-  } catch {
-    // ignore
-  }
-}
-
-export function loadVotedIdeaIds(): Set<string> {
-  try {
-    if (typeof localStorage === "undefined") return new Set();
-    const raw = localStorage.getItem(VOTED_IDEAS_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return new Set(parsed.map(String));
-  } catch {
-    // ignore
-  }
-  return new Set();
-}
-
-export function setVotedIdeaId(id: string | number, voted: boolean): void {
-  try {
-    if (typeof localStorage === "undefined") return;
-    const set = loadVotedIdeaIds();
-    const idStr = String(id);
-    if (voted) set.add(idStr);
-    else set.delete(idStr);
-    localStorage.setItem(VOTED_IDEAS_KEY, JSON.stringify([...set]));
-  } catch {
-    // ignore
-  }
+  const list = loadHeldIdeas();
+  if (list.some((i) => String(i.id) === String(idea.id))) return;
+  list.push(idea);
+  writeJson(HELD_IDEAS_KEY, list);
 }
 
 /** Drops held ideas that are now public (ids in publicIds); returns the ones still held. */
 export function pruneHeldIdeas(publicIds: Set<string>): Idea[] {
   const list = loadHeldIdeas();
   const kept = list.filter((i) => !publicIds.has(String(i.id)));
-  if (kept.length !== list.length) {
-    try {
-      localStorage.setItem(HELD_IDEAS_KEY, JSON.stringify(kept));
-    } catch {
-      // ignore
-    }
-  }
+  if (kept.length !== list.length) writeJson(HELD_IDEAS_KEY, kept);
   return kept;
+}
+
+export function loadVotedIdeaIds(): Set<string> {
+  return new Set(readJsonArray(VOTED_IDEAS_KEY).map(String));
+}
+
+export function setVotedIdeaId(id: string | number, voted: boolean): void {
+  const set = loadVotedIdeaIds();
+  if (voted) set.add(String(id));
+  else set.delete(String(id));
+  writeJson(VOTED_IDEAS_KEY, [...set]);
 }

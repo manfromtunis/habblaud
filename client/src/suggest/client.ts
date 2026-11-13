@@ -8,6 +8,17 @@ export interface PostIdeaResult {
   status: string;
 }
 
+async function httpError(res: Response, fallback: string): Promise<Error & { status?: number }> {
+  let msg = `${fallback} (${res.status})`;
+  try {
+    const errJson = (await res.json()) as { error?: string };
+    if (errJson.error) msg = errJson.error;
+  } catch {
+    // not JSON: keep the fallback
+  }
+  return Object.assign(new Error(msg), { status: res.status });
+}
+
 export async function fetchIdeas(): Promise<Idea[]> {
   const res = await fetch("/suggest/ideas.json", { cache: "no-store" });
   if (!res.ok) {
@@ -33,18 +44,7 @@ export async function postIdea(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    let msg = `Request failed (${res.status})`;
-    try {
-      const errJson = (await res.json()) as { error?: string };
-      if (errJson.error) msg = errJson.error;
-    } catch {
-      // ignore
-    }
-    const err = new Error(msg) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
-  }
+  if (!res.ok) throw await httpError(res, "Request failed");
   const data = (await res.json()) as { id: number | string; public?: boolean; product?: string; text?: string; status?: string };
   return {
     id: data.id,
@@ -72,18 +72,7 @@ export async function postVote(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idea_id: idNum, token, on }),
   });
-  if (!res.ok) {
-    let msg = `Vote failed (${res.status})`;
-    try {
-      const errJson = (await res.json()) as { error?: string };
-      if (errJson.error) msg = errJson.error;
-    } catch {
-      // ignore
-    }
-    const err = new Error(msg) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
-  }
+  if (!res.ok) throw await httpError(res, "Vote failed");
   const data = (await res.json()) as { idea_id: number; votes: number; on: boolean };
   return {
     idea_id: data.idea_id,

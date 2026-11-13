@@ -1,8 +1,8 @@
-import type { Idea, IdeaStatus } from "./types";
+import type { Idea } from "./types";
 import { parseVoteToken, isTokenExpired, extractHashToken, getStoredToken, saveStoredToken, removeStoredToken } from "./token";
 import { findSimilarIdeas } from "./similar";
 import { selectLatestIdeas, formatRelativeTime } from "./feed";
-import { createSyntheticAgent, mergeSyntheticAgent } from "./synthetic";
+import { createSyntheticAgent } from "./synthetic";
 import { loadOwnIdeaIds, saveOwnIdeaId, loadHeldIdeas, saveHeldIdea, pruneHeldIdeas, loadVotedIdeaIds, setVotedIdeaId } from "./storage";
 import { fetchIdeas, postIdea, postVote } from "./client";
 import type { PublicFeed, PublicAgent } from "../../../shared/demo/public";
@@ -33,6 +33,13 @@ export interface SuggestManagerOptions {
   container: HTMLElement;
   onSyntheticAgentUpdate: (agent: PublicAgent | null) => void;
   onFocusAgent: (agentId: string) => void;
+}
+
+/** The product's sign-in link with this page as the return address; null unless voteUrl is https. */
+function signinUrl(voteUrl: unknown): string | null {
+  if (typeof voteUrl !== "string" || !voteUrl.startsWith("https://")) return null;
+  const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
+  return `${voteUrl}${voteUrl.includes("?") ? "&" : "?"}return=${returnUrl}`;
 }
 
 export class SuggestManager {
@@ -576,16 +583,13 @@ export class SuggestManager {
     const productKey = this.activeProductTab;
     const prodName = this.currentFeed.products[productKey]?.name ?? productKey;
     const token = getStoredToken(productKey);
-    const voteUrl = this.currentFeed.products[productKey]?.voteUrl;
+    const signinHref = token ? null : signinUrl(this.currentFeed.products[productKey]?.voteUrl);
 
     if (token) {
-      const payload = parseVoteToken(token);
       this.boardAuthBar.append(
         el("span", "", `Signed in to ${prodName}. One vote per idea, click again to remove.`)
       );
-    } else if (voteUrl && typeof voteUrl === "string" && voteUrl.startsWith("https://")) {
-      const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
-      const signinHref = `${voteUrl}${voteUrl.includes("?") ? "&" : "?"}return=${returnUrl}`;
+    } else if (signinHref) {
       const signinLink = el("a", "ideas-signin-link", `Sign in with ${prodName}`);
       signinLink.href = signinHref;
 
@@ -651,10 +655,13 @@ export class SuggestManager {
     btn.append(tri, count);
 
     const token = getStoredToken(idea.product);
-    const voteUrl = this.currentFeed.products[idea.product]?.voteUrl;
     const canVote = !!token;
 
-    if (!canVote && (!voteUrl || !voteUrl.startsWith("https://"))) {
+    if (idea.public === false) {
+      // held by the screen: the service refuses votes until the idea is public
+      btn.disabled = true;
+      btn.title = "Votes open once the idea is public";
+    } else if (!canVote && !signinUrl(this.currentFeed.products[idea.product]?.voteUrl)) {
       btn.disabled = true;
       btn.title = "Voting opens soon";
     }
@@ -672,13 +679,9 @@ export class SuggestManager {
     onSuccess?: () => void
   ): Promise<void> {
     const token = getStoredToken(idea.product);
-    const voteUrl = this.currentFeed.products[idea.product]?.voteUrl;
-
     if (!token) {
-      if (voteUrl && voteUrl.startsWith("https://")) {
-        const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
-        window.location.href = `${voteUrl}${voteUrl.includes("?") ? "&" : "?"}return=${returnUrl}`;
-      }
+      const href = signinUrl(this.currentFeed.products[idea.product]?.voteUrl);
+      if (href) window.location.href = href;
       return;
     }
 
