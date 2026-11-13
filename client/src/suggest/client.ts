@@ -68,21 +68,22 @@ export async function postIdea(
   // (AbortController + setTimeout rather than AbortSignal.timeout, which older browsers lack)
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), POST_TIMEOUT_MS);
-  let res: Response;
+  let data: { id: number | string | null; public?: boolean; product?: string; text?: string; status?: string; look?: unknown };
   try {
-    res = await fetch("/suggest/idea", {
+    // the timer covers the headers AND the body: a stalled body must not leave "Sending..." stuck
+    const res = await fetch("/suggest/idea", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
+    if (!res.ok) throw await httpError(res, "Request failed");
+    data = await res.json();
   } catch (err) {
     throw ctrl.signal.aborted ? new SuggestTimeoutError() : err;
   } finally {
     clearTimeout(timer);
   }
-  if (!res.ok) throw await httpError(res, "Request failed");
-  const data = (await res.json()) as { id: number | string | null; public?: boolean; product?: string; text?: string; status?: string; look?: unknown };
   return {
     id: data.id ?? null,
     public: data.public !== false,

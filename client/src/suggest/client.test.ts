@@ -44,6 +44,23 @@ describe("postIdea timeout", () => {
     await check;
   });
 
+  it("also times out when the headers arrive but the body stalls", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", (_url: string, init: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+          }),
+      })
+    );
+    const p = postIdea("alpha", "an idea that is long enough");
+    const check = expect(p).rejects.toBeInstanceOf(SuggestTimeoutError);
+    await vi.advanceTimersByTimeAsync(POST_TIMEOUT_MS);
+    await check;
+  });
+
   it("passes other network errors through", async () => {
     vi.stubGlobal("fetch", () => Promise.reject(new TypeError("Failed to fetch")));
     await expect(postIdea("alpha", "an idea that is long enough")).rejects.toThrow("Failed to fetch");
