@@ -80,3 +80,17 @@ export function setVotedIdeaId(id: string | number, voted: boolean): void {
     // ignore
   }
 }
+
+/** Drops held ideas that are now public (ids in publicIds); returns the ones still held. */
+export function pruneHeldIdeas(publicIds: Set<string>): Idea[] {
+  const list = loadHeldIdeas();
+  const kept = list.filter((i) => !publicIds.has(String(i.id)));
+  if (kept.length !== list.length) {
+    try {
+      localStorage.setItem(HELD_IDEAS_KEY, JSON.stringify(kept));
+    } catch {
+      // ignore
+    }
+  }
+  return kept;
+}

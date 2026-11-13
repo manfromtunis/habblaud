@@ -3,7 +3,7 @@ import { parseVoteToken, isTokenExpired, extractHashToken, getStoredToken, saveS
 import { findSimilarIdeas } from "./similar";
 import { selectLatestIdeas, formatRelativeTime } from "./feed";
 import { createSyntheticAgent, mergeSyntheticAgent } from "./synthetic";
-import { loadOwnIdeaIds, saveOwnIdeaId, loadHeldIdeas, saveHeldIdea, loadVotedIdeaIds, setVotedIdeaId } from "./storage";
+import { loadOwnIdeaIds, saveOwnIdeaId, loadHeldIdeas, saveHeldIdea, pruneHeldIdeas, loadVotedIdeaIds, setVotedIdeaId } from "./storage";
 import { fetchIdeas, postIdea, postVote } from "./client";
 import type { PublicFeed, PublicAgent } from "../../../shared/demo/public";
 import "./suggest.css";
@@ -148,6 +148,8 @@ export class SuggestManager {
     try {
       const remote = await fetchIdeas();
       this.allIdeas = remote;
+      // a held idea the owner released is now public: show it once, from the public list
+      this.heldIdeas = pruneHeldIdeas(new Set(remote.map((i) => String(i.id))));
       this.renderBoardList();
       this.renderFeedCard();
       this.renderSimilarInForm();
@@ -578,9 +580,8 @@ export class SuggestManager {
 
     if (token) {
       const payload = parseVoteToken(token);
-      const who = payload?.uid ? ` (${payload.uid})` : "";
       this.boardAuthBar.append(
-        el("span", "", `Signed in to ${prodName}${who}. One vote per idea, click again to remove.`)
+        el("span", "", `Signed in to ${prodName}. One vote per idea, click again to remove.`)
       );
     } else if (voteUrl && typeof voteUrl === "string" && voteUrl.startsWith("https://")) {
       const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
@@ -737,7 +738,7 @@ export class SuggestManager {
 
       const meta = el("div", "feed-meta");
       const prodName = this.currentFeed.products[idea.product]?.name ?? idea.product;
-      const ageStr = isMine ? "just now, yours" : formatRelativeTime(idea.created_at);
+      const ageStr = `${formatRelativeTime(idea.created_at)}${isMine ? ", yours" : ""}`;
 
       meta.append(
         el("span", "feed-product", prodName),
