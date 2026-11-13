@@ -4,7 +4,7 @@ import { findSimilarIdeas } from "./similar";
 import { selectLatestIdeas, formatRelativeTime, mergePolledIdeas } from "./feed";
 import { createSyntheticAgent } from "./synthetic";
 import { loadOwnIdeaIds, saveOwnIdeaId, loadHeldIdeas, saveHeldIdea, pruneHeldIdeas, loadVotedIdeaIds, setVotedIdeaId } from "./storage";
-import { fetchIdeas, postIdea, postVote } from "./client";
+import { fetchIdeas, postIdea, postVote, type PostIdeaResult } from "./client";
 import type { PublicFeed, PublicAgent } from "../../../shared/demo/public";
 import "./suggest.css";
 
@@ -554,7 +554,7 @@ export class SuggestManager {
       this.renderFeedCard();
       this.renderBoardList();
 
-      this.triggerAgentWalk(ideaId, product, text);
+      this.triggerAgentWalk(ideaId, product, text, res);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to submit suggestion";
       this.suggestError.textContent = msg;
@@ -566,7 +566,7 @@ export class SuggestManager {
     }
   }
 
-  private triggerAgentWalk(ideaId: number | string, product: string, text: string): void {
+  private triggerAgentWalk(ideaId: number | string, product: string, text: string, res: PostIdeaResult): void {
     if (this.syntheticTimer6) clearTimeout(this.syntheticTimer6);
     if (this.syntheticTimer60) clearTimeout(this.syntheticTimer60);
 
@@ -589,7 +589,7 @@ export class SuggestManager {
           label: `Analysing suggestion #${ideaId}`,
         };
         this.onSyntheticAgentUpdate(this.activeSyntheticAgent);
-        this.showWorkCard(ideaId, product, text);
+        this.showWorkCard(ideaId, product, text, res);
       }
     }, 6_000);
 
@@ -602,20 +602,12 @@ export class SuggestManager {
     }, 60_000);
   }
 
-  private showWorkCard(ideaId: number | string, product: string, text: string): void {
+  private showWorkCard(ideaId: number | string, product: string, text: string, res: PostIdeaResult): void {
     const prodName = this.currentFeed.products[product]?.name ?? product;
     this.workCardProductPill.textContent = prodName;
 
     const similar = findSimilarIdeas(text, product, this.allIdeas);
     const similarCount = similar.length;
-
-    // Room activity info from feed agents
-    const roomAgents = this.currentFeed.agents.filter((a) => a.product === product);
-    const activeCount = roomAgents.filter((a) => a.state === "running").length;
-    let activityText = `${roomAgents.length} ${roomAgents.length === 1 ? "agent" : "agents"} in the ${prodName} room (${activeCount} active)`;
-    if (roomAgents.length > 0 && roomAgents[0].label) {
-      activityText += ` · Working on: ${roomAgents[0].label}`;
-    }
 
     const snippet = text.length > 70 ? text.slice(0, 68) + "..." : text;
 
@@ -633,13 +625,29 @@ export class SuggestManager {
       el("div", "card-section-value", similarCount === 0 ? "No similar suggestions found." : `Found ${similarCount} similar suggestion${similarCount === 1 ? "" : "s"}.`)
     );
 
-    const sec3 = el("div", "card-section");
-    sec3.append(
-      el("div", "card-section-label", "Room activity"),
-      el("div", "card-section-value", activityText)
-    );
+    // AI first look: two fixed-phrase lines from the service (Jev), never model-written text
+    const lookSections: HTMLElement[] = [];
+    const lookLabel = (name: string) => {
+      const label = el("div", "card-section-label", name);
+      label.append(el("span", "look-tag", "AI first look"));
+      return label;
+    };
+    if (res.look) {
+      for (const [name, value] of [["Fit with the roadmap", res.look.fit], ["Rough effort", res.look.effort]]) {
+        const sec = el("div", "card-section");
+        sec.append(lookLabel(name), el("div", "card-section-value", value));
+        lookSections.push(sec);
+      }
+    } else {
+      const sec = el("div", "card-section");
+      sec.append(
+        lookLabel("Roadmap fit and effort"),
+        el("div", "card-section-value", res.public ? "Unavailable right now. The team reviews every idea." : "Not run: the team reviews this idea first.")
+      );
+      lookSections.push(sec);
+    }
 
-    this.workCardBody.append(sec1, sec2, sec3);
+    this.workCardBody.append(sec1, sec2, ...lookSections);
     this.workCard.hidden = false;
   }
 

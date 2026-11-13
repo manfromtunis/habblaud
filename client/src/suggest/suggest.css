@@ -684,3 +684,14 @@
     width: 100%;
   }
 }
+
+.look-tag {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(255, 183, 77, 0.15);
+  color: #ffd699;
+}

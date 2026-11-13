@@ -7,6 +7,20 @@ export interface PostIdeaResult {
   product: string;
   text: string;
   status: string;
+  /** The service's "AI first look" (fixed phrases built server-side), null when not run or failed. */
+  look: FirstLook | null;
+}
+
+export interface FirstLook {
+  fit: string;
+  effort: string;
+}
+
+export function parseLook(v: unknown): FirstLook | null {
+  if (!v || typeof v !== "object") return null;
+  const { fit, effort } = v as Record<string, unknown>;
+  if (typeof fit !== "string" || typeof effort !== "string") return null;
+  return { fit: fit.slice(0, 200), effort: effort.slice(0, 200) };
 }
 
 async function httpError(res: Response, fallback: string): Promise<Error & { status?: number }> {
@@ -47,13 +61,14 @@ export async function postIdea(
     body: JSON.stringify(body),
   });
   if (!res.ok) throw await httpError(res, "Request failed");
-  const data = (await res.json()) as { id: number | string | null; public?: boolean; product?: string; text?: string; status?: string };
+  const data = (await res.json()) as { id: number | string | null; public?: boolean; product?: string; text?: string; status?: string; look?: unknown };
   return {
     id: data.id ?? null,
     public: data.public !== false,
     product: data.product ?? product,
     text: data.text ?? text,
     status: data.status ?? "under-review",
+    look: parseLook(data.look),
   };
 }
 
