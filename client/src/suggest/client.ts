@@ -16,6 +16,15 @@ export interface FirstLook {
   effort: string;
 }
 
+export const POST_TIMEOUT_MS = 10_000;
+
+export class SuggestTimeoutError extends Error {
+  constructor() {
+    super("The office took too long to answer. Your idea may be saved: check Latest ideas before sending it again.");
+    this.name = "SuggestTimeoutError";
+  }
+}
+
 export function parseLook(v: unknown): FirstLook | null {
   if (!v || typeof v !== "object") return null;
   const { fit, effort } = v as Record<string, unknown>;
@@ -56,12 +65,22 @@ export async function postIdea(
     website,
   };
   // the service waits up to 3 s for the AI first look; never leave "Sending..." stuck longer than this
-  const res = await fetch("/suggest/idea", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10_000),
-  });
+  // (AbortController + setTimeout rather than AbortSignal.timeout, which older browsers lack)
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), POST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch("/suggest/idea", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+  } catch (err) {
+    throw ctrl.signal.aborted ? new SuggestTimeoutError() : err;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw await httpError(res, "Request failed");
   const data = (await res.json()) as { id: number | string | null; public?: boolean; product?: string; text?: string; status?: string; look?: unknown };
   return {
