@@ -39,7 +39,7 @@
 
 .pub-card {
   position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%);
-  z-index: 10001; /* above the suggestions card and buttons (suggest.css), which share the bottom on phones */
+  z-index: 9800; /* above the suggestion cards (9000, 9500), below their buttons (10000) and dialogs (10001) */
   display: flex; flex-direction: column; gap: 2px; min-width: 220px; max-width: calc(100vw - 32px);
   background: rgba(18, 21, 29, 0.92); border: 2px solid #f08a3c; border-radius: 6px; padding: 8px 14px; text-align: center;
 }
@@ -47,3 +47,8 @@
 .pub-card__name { font-size: 17px; }
 .pub-card__label { font-size: 15px; }
 .pub-card__meta { font-size: 13px; opacity: 0.7; }
+
+/* Phones: the suggestions card and buttons fill the bottom, so the agent card sits under the header. */
+@media (max-width: 600px) {
+  .pub-card { top: 112px; bottom: auto; }
+}

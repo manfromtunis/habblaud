@@ -47,10 +47,18 @@ function charCount(text: string): number {
   return [...text].length;
 }
 
-/** Drops invisible format characters the service refuses, keeping the emoji joiners it allows. */
+/** Drops control and format characters the service refuses, keeping newlines, tabs and emoji joiners. */
 function cleanText(text: string): string {
-  return text.replace(/\p{Cf}/gu, (c) => (c === "\u200c" || c === "\u200d" ? c : "")).trim();
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\p{Cc}\p{Cf}]/gu, (c) => ("\n\t\u200c\u200d".includes(c) ? c : ""))
+    .trim();
 }
+
+/** A vote count the visitor just changed wins over polled counts for this long (ideas.json may be cached 30 s). */
+const VOTE_HOLD_MS = 60_000;
+/** Notice key shown on every product tab. */
+const ANY_PRODUCT = "*";
 
 export class SuggestManager {
   private container: HTMLElement;
@@ -105,7 +113,9 @@ export class SuggestManager {
   /** Own public ideas from POST replies, kept until ideas.json lists them. */
   private recentOwn: Idea[] = [];
   private sending = false;
-  private authNotice = "";
+  /** Sign-in and vote notices, per product key (ANY_PRODUCT: every tab). */
+  private notices = new Map<string, string>();
+  private voteHolds = new Map<string, { votes: number; at: number }>();
 
   constructor(options: SuggestManagerOptions) {
     this.container = options.container;
@@ -162,11 +172,18 @@ export class SuggestManager {
       const payload = token ? parseVoteToken(token) : null;
       if (token && payload && !isTokenExpired(payload)) {
         saveStoredToken(payload.product, token);
-        this.authNotice = "";
+        this.notices.delete(payload.product);
+        this.notices.delete(ANY_PRODUCT);
+      } else {
+        this.notices.set(ANY_PRODUCT, "Sign-in did not work, please try again.");
       }
     } finally {
       // never leave a token (valid or not) in the address bar or history
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      try {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      } catch {
+        // some sandboxed frames refuse it: the page must still load
+      }
     }
   }
 
@@ -176,7 +193,7 @@ export class SuggestManager {
       if (!draft) return;
       sessionStorage.removeItem(DRAFT_KEY);
       this.suggestTextarea.value = draft;
-      this.suggestCharCounter.textContent = `${charCount(draft)} / 500`;
+      this.suggestCharCounter.textContent = `${charCount(cleanText(draft))} / 500`;
     } catch {
       // storage blocked: nothing to restore
     }
@@ -198,6 +215,12 @@ export class SuggestManager {
       const remote = await fetchIdeas();
       if (started < this.lastWriteAt) return; // read before our last write: would undo it on screen
       this.allIdeas = mergePolledIdeas(remote, this.recentOwn);
+      const now = Date.now();
+      for (const idea of this.allIdeas) {
+        const hold = this.voteHolds.get(String(idea.id));
+        if (hold && now - hold.at < VOTE_HOLD_MS) idea.votes = hold.votes;
+        else if (hold) this.voteHolds.delete(String(idea.id));
+      }
       this.recentOwn = this.recentOwn.filter((i) => this.allIdeas.includes(i));
       // a held idea the owner released is now public: show it once, from the public list
       this.heldIdeas = pruneHeldIdeas(new Set(remote.map((i) => String(i.id))));
@@ -374,7 +397,7 @@ export class SuggestManager {
     });
 
     this.suggestTextarea.addEventListener("input", () => {
-      const len = charCount(this.suggestTextarea.value);
+      const len = charCount(cleanText(this.suggestTextarea.value));
       this.suggestCharCounter.textContent = `${len} / 500`;
       this.renderSimilarInForm();
     });
@@ -649,7 +672,8 @@ export class SuggestManager {
     const token = getStoredToken(productKey);
     const signinHref = token ? null : signinUrl(this.currentFeed.products[productKey]?.voteUrl);
 
-    if (this.authNotice) this.boardAuthBar.append(el("span", "ideas-auth-notice", this.authNotice), " ");
+    const notice = this.notices.get(productKey) ?? this.notices.get(ANY_PRODUCT);
+    if (notice) this.boardAuthBar.append(el("span", "ideas-auth-notice", notice), " ");
     if (token) {
       this.boardAuthBar.append(
         el("span", "", `Signed in to ${prodName}. One vote per idea, click again to remove.`)
@@ -657,6 +681,10 @@ export class SuggestManager {
     } else if (signinHref) {
       const signinLink = el("a", "ideas-signin-link", `Sign in with ${prodName}`);
       signinLink.href = signinHref;
+      signinLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.goSignin(signinHref);
+      });
 
       this.boardAuthBar.append(
         el("span", "", `Sign in with your ${prodName} account to vote: `),
@@ -758,11 +786,13 @@ export class SuggestManager {
       const res = await postVote(idea.id, token, nextOn);
       this.lastWriteAt = Date.now();
       idea.votes = res.votes;
+      this.voteHolds.set(String(idea.id), { votes: res.votes, at: Date.now() });
       const on = typeof res.on === "boolean" ? res.on : nextOn; // the service's answer wins
       setVotedIdeaId(idea.id, on);
       if (on) this.votedIdeaIds.add(String(idea.id));
       else this.votedIdeaIds.delete(String(idea.id));
-      this.authNotice = "";
+      this.notices.delete(idea.product);
+      this.notices.delete(ANY_PRODUCT);
 
       this.renderBoardList();
       this.renderFeedCard();
@@ -772,15 +802,15 @@ export class SuggestManager {
       const status = (err as { status?: number })?.status;
       if (status === 401 || status === 403) {
         removeStoredToken(idea.product);
-        this.authNotice = "Your sign-in expired.";
+        this.notices.set(idea.product, "Your sign-in expired.");
       } else {
-        this.authNotice = err instanceof Error ? err.message : "Vote failed";
+        this.notices.set(idea.product, err instanceof Error ? err.message : "Vote failed");
       }
       this.renderBoardAuthBar();
       this.renderBoardList();
       this.renderSimilarInForm();
       if (!this.suggestBackdrop.hidden) {
-        this.suggestError.textContent = this.authNotice;
+        this.suggestError.textContent = this.notices.get(idea.product) ?? "";
         this.suggestError.style.display = "block";
       }
     } finally {
