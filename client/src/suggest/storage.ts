@@ -45,10 +45,16 @@ export function saveHeldIdea(idea: Idea): void {
   writeJson(HELD_IDEAS_KEY, list);
 }
 
-/** Drops held ideas that are now public (ids in publicIds); returns the ones still held. */
-export function pruneHeldIdeas(publicIds: Set<string>): Idea[] {
+/** A held idea the owner never releases (hidden or declined) stops showing after this long. */
+export const HELD_IDEA_MAX_AGE_MS = 7 * 24 * 3600_000;
+
+/** Drops held ideas that are now public (ids in publicIds) or older than a week; returns the rest. */
+export function pruneHeldIdeas(publicIds: Set<string>, nowMs: number = Date.now()): Idea[] {
   const list = loadHeldIdeas();
-  const kept = list.filter((i) => !publicIds.has(String(i.id)));
+  const kept = list.filter((i) => {
+    const sent = i.created_at ? Date.parse(i.created_at) : NaN;
+    return !publicIds.has(String(i.id)) && Number.isFinite(sent) && nowMs - sent < HELD_IDEA_MAX_AGE_MS;
+  });
   if (kept.length !== list.length) writeJson(HELD_IDEAS_KEY, kept);
   return kept;
 }

@@ -1,7 +1,7 @@
 import type { Idea } from "./types";
-import { parseVoteToken, isTokenExpired, extractHashToken, getStoredToken, saveStoredToken, removeStoredToken } from "./token";
+import { parseVoteToken, isTokenExpired, extractHashToken, getStoredToken, saveStoredToken, removeStoredToken, signinUrl as signinLink } from "./token";
 import { findSimilarIdeas } from "./similar";
-import { selectLatestIdeas, formatRelativeTime } from "./feed";
+import { selectLatestIdeas, formatRelativeTime, mergePolledIdeas } from "./feed";
 import { createSyntheticAgent } from "./synthetic";
 import { loadOwnIdeaIds, saveOwnIdeaId, loadHeldIdeas, saveHeldIdea, pruneHeldIdeas, loadVotedIdeaIds, setVotedIdeaId } from "./storage";
 import { fetchIdeas, postIdea, postVote } from "./client";
@@ -35,11 +35,21 @@ export interface SuggestManagerOptions {
   onFocusAgent: (agentId: string) => void;
 }
 
-/** The product's sign-in link with this page as the return address; null unless voteUrl is https. */
+/** The product's sign-in link, coming back to this page; null unless voteUrl is https. */
 function signinUrl(voteUrl: unknown): string | null {
-  if (typeof voteUrl !== "string" || !voteUrl.startsWith("https://")) return null;
-  const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
-  return `${voteUrl}${voteUrl.includes("?") ? "&" : "?"}return=${returnUrl}`;
+  return signinLink(voteUrl, window.location.origin + window.location.pathname);
+}
+
+const DRAFT_KEY = "suggest-draft";
+
+/** Code points, as the service counts them (UTF-16 length counts an emoji as 2). */
+function charCount(text: string): number {
+  return [...text].length;
+}
+
+/** Drops invisible format characters the service refuses, keeping the emoji joiners it allows. */
+function cleanText(text: string): string {
+  return text.replace(/\p{Cf}/gu, (c) => (c === "\u200c" || c === "\u200d" ? c : "")).trim();
 }
 
 export class SuggestManager {
@@ -90,6 +100,12 @@ export class SuggestManager {
   private workCardBody = el("div", "pixel-work-card-body");
 
   private lastIdeasPoll = 0;
+  /** Time of the last POST that changed ideas or votes: a poll that started before it is stale. */
+  private lastWriteAt = 0;
+  /** Own public ideas from POST replies, kept until ideas.json lists them. */
+  private recentOwn: Idea[] = [];
+  private sending = false;
+  private authNotice = "";
 
   constructor(options: SuggestManagerOptions) {
     this.container = options.container;
@@ -97,9 +113,15 @@ export class SuggestManager {
     this.onFocusAgent = options.onFocusAgent;
 
     this.initTokenFromUrl();
-    window.addEventListener("hashchange", () => this.initTokenFromUrl());
     this.buildDom();
     this.setupListeners();
+    this.restoreDraft();
+    window.addEventListener("hashchange", () => {
+      this.initTokenFromUrl();
+      this.renderBoardAuthBar();
+      this.renderBoardList();
+      this.renderSimilarInForm();
+    });
     void this.pollIdeas();
 
     // Poll ideas every 60s and on focus
@@ -133,28 +155,50 @@ export class SuggestManager {
   }
 
   private initTokenFromUrl(): void {
+    const hash = window.location.hash;
+    if (!hash.includes("suggest-token=")) return;
     try {
-      const hash = window.location.hash;
       const token = extractHashToken(hash);
-      if (token) {
-        const payload = parseVoteToken(token);
-        if (payload && !isTokenExpired(payload)) {
-          saveStoredToken(payload.product, token);
-        }
-        if (window.history && typeof window.history.replaceState === "function") {
-          window.history.replaceState(null, "", window.location.pathname + window.location.search);
-        }
+      const payload = token ? parseVoteToken(token) : null;
+      if (token && payload && !isTokenExpired(payload)) {
+        saveStoredToken(payload.product, token);
+        this.authNotice = "";
       }
-    } catch {
-      // ignore
+    } finally {
+      // never leave a token (valid or not) in the address bar or history
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
   }
 
+  private restoreDraft(): void {
+    try {
+      const draft = sessionStorage.getItem(DRAFT_KEY);
+      if (!draft) return;
+      sessionStorage.removeItem(DRAFT_KEY);
+      this.suggestTextarea.value = draft;
+      this.suggestCharCounter.textContent = `${charCount(draft)} / 500`;
+    } catch {
+      // storage blocked: nothing to restore
+    }
+  }
+
+  /** Goes to the product's sign-in, keeping the visitor's unsent text for when they come back. */
+  private goSignin(href: string): void {
+    try {
+      if (this.suggestTextarea.value.trim()) sessionStorage.setItem(DRAFT_KEY, this.suggestTextarea.value);
+    } catch {
+      // storage blocked: the draft is lost, sign-in still works
+    }
+    window.location.href = href;
+  }
+
   private async pollIdeas(): Promise<void> {
-    this.lastIdeasPoll = Date.now();
+    const started = (this.lastIdeasPoll = Date.now());
     try {
       const remote = await fetchIdeas();
-      this.allIdeas = remote;
+      if (started < this.lastWriteAt) return; // read before our last write: would undo it on screen
+      this.allIdeas = mergePolledIdeas(remote, this.recentOwn);
+      this.recentOwn = this.recentOwn.filter((i) => this.allIdeas.includes(i));
       // a held idea the owner released is now public: show it once, from the public list
       this.heldIdeas = pruneHeldIdeas(new Set(remote.map((i) => String(i.id))));
       this.renderBoardList();
@@ -189,6 +233,9 @@ export class SuggestManager {
     const prodSection = el("div");
     prodSection.append(el("label", "pixel-label", "Product"), this.suggestProductContainer);
     sBody.append(prodSection);
+    this.suggestDialog.setAttribute("role", "dialog");
+    this.suggestDialog.setAttribute("aria-modal", "true");
+    this.suggestDialog.setAttribute("aria-label", "Suggest a feature");
 
     // Text section
     const textSection = el("div");
@@ -196,7 +243,7 @@ export class SuggestManager {
     this.suggestTextarea.rows = 4;
     this.suggestTextarea.placeholder = "Describe the feature in detail (10 - 500 characters)...";
     textSection.append(
-      el("label", "pixel-label", "Your Suggestion"),
+      Object.assign(el("label", "pixel-label", "Your Suggestion"), { htmlFor: "suggestion-text" }),
       this.suggestTextarea,
       this.suggestCharCounter
     );
@@ -213,9 +260,11 @@ export class SuggestManager {
     // Email section
     const emailSection = el("div");
     this.suggestEmail.type = "email";
+    this.suggestEmail.id = "suggestion-email";
+    this.suggestEmail.maxLength = 254;
     this.suggestEmail.placeholder = "you@domain.com";
     emailSection.append(
-      el("label", "pixel-label", "Your Email (optional)"),
+      Object.assign(el("label", "pixel-label", "Your Email (optional)"), { htmlFor: "suggestion-email" }),
       el("div", "pixel-sublabel", "Only the team sees it, never public"),
       this.suggestEmail
     );
@@ -256,6 +305,9 @@ export class SuggestManager {
     bClose.addEventListener("click", () => this.closeBoard());
     bHeader.append(bClose);
 
+    this.boardDialog.setAttribute("role", "dialog");
+    this.boardDialog.setAttribute("aria-modal", "true");
+    this.boardDialog.setAttribute("aria-label", "Ideas board");
     this.boardDialog.append(bHeader, this.boardTabsContainer, this.boardAuthBar, this.boardList);
     this.boardBackdrop.append(this.boardDialog);
 
@@ -322,7 +374,7 @@ export class SuggestManager {
     });
 
     this.suggestTextarea.addEventListener("input", () => {
-      const len = this.suggestTextarea.value.length;
+      const len = charCount(this.suggestTextarea.value);
       this.suggestCharCounter.textContent = `${len} / 500`;
       this.renderSimilarInForm();
     });
@@ -333,8 +385,9 @@ export class SuggestManager {
   private openSuggestDialog(): void {
     this.suggestError.style.display = "none";
     this.suggestError.textContent = "";
-    this.suggestSendBtn.disabled = false;
-    this.suggestSendBtn.textContent = "Send";
+    // a POST still in flight keeps Send locked, so Cancel + reopen cannot send twice
+    this.suggestSendBtn.disabled = this.sending;
+    this.suggestSendBtn.textContent = this.sending ? "Sending..." : "Send";
     this.renderSuggestProducts();
     this.renderSimilarInForm();
     this.suggestBackdrop.hidden = false;
@@ -407,19 +460,20 @@ export class SuggestManager {
   }
 
   private async submitForm(): Promise<void> {
-    const text = this.suggestTextarea.value.trim();
+    if (this.sending) return;
+    const text = cleanText(this.suggestTextarea.value);
     const email = this.suggestEmail.value.trim();
     const product = this.selectedSuggestProduct;
 
     this.suggestError.style.display = "none";
     this.suggestError.textContent = "";
 
-    if (text.length < 10) {
+    if (charCount(text) < 10) {
       this.suggestError.textContent = "Text must be at least 10 characters.";
       this.suggestError.style.display = "block";
       return;
     }
-    if (text.length > 500) {
+    if (charCount(text) > 500) {
       this.suggestError.textContent = "Text must be at most 500 characters.";
       this.suggestError.style.display = "block";
       return;
@@ -435,18 +489,25 @@ export class SuggestManager {
       return;
     }
 
+    this.sending = true;
     this.suggestSendBtn.disabled = true;
     this.suggestSendBtn.textContent = "Sending...";
 
     try {
-      const res = await postIdea(product, text, email);
+      const res = await postIdea(product, text, email, this.suggestHoneypot.value);
+      this.lastWriteAt = Date.now();
       this.closeSuggestDialog();
-      this.suggestTextarea.value = "";
-      this.suggestCharCounter.textContent = "0 / 500";
+      // clear only what was sent: the visitor may have started a new text meanwhile
+      if (cleanText(this.suggestTextarea.value) === text) {
+        this.suggestTextarea.value = "";
+        this.suggestCharCounter.textContent = "0 / 500";
+      }
       this.suggestEmail.value = "";
 
       const ideaId = res.id;
+      if (ideaId === null) return; // the service treated it as a bot's: nothing stored, nothing to show
       saveOwnIdeaId(ideaId);
+      this.ownIdeaIds.add(String(ideaId));
 
       const newIdea: Idea = {
         id: ideaId,
@@ -463,6 +524,7 @@ export class SuggestManager {
         this.heldIdeas.push(newIdea);
         saveHeldIdea(newIdea);
       } else {
+        this.recentOwn.push(newIdea);
         this.allIdeas.unshift(newIdea);
       }
 
@@ -474,6 +536,8 @@ export class SuggestManager {
       const msg = err instanceof Error ? err.message : "Failed to submit suggestion";
       this.suggestError.textContent = msg;
       this.suggestError.style.display = "block";
+    } finally {
+      this.sending = false;
       this.suggestSendBtn.disabled = false;
       this.suggestSendBtn.textContent = "Send";
     }
@@ -548,7 +612,7 @@ export class SuggestManager {
 
     const sec3 = el("div", "card-section");
     sec3.append(
-      el("div", "card-section-label", "Room Activity"),
+      el("div", "card-section-label", "Room activity"),
       el("div", "card-section-value", activityText)
     );
 
@@ -585,6 +649,7 @@ export class SuggestManager {
     const token = getStoredToken(productKey);
     const signinHref = token ? null : signinUrl(this.currentFeed.products[productKey]?.voteUrl);
 
+    if (this.authNotice) this.boardAuthBar.append(el("span", "ideas-auth-notice", this.authNotice), " ");
     if (token) {
       this.boardAuthBar.append(
         el("span", "", `Signed in to ${prodName}. One vote per idea, click again to remove.`)
@@ -681,7 +746,7 @@ export class SuggestManager {
     const token = getStoredToken(idea.product);
     if (!token) {
       const href = signinUrl(this.currentFeed.products[idea.product]?.voteUrl);
-      if (href) window.location.href = href;
+      if (href) this.goSignin(href);
       return;
     }
 
@@ -691,10 +756,13 @@ export class SuggestManager {
     btn.disabled = true;
     try {
       const res = await postVote(idea.id, token, nextOn);
+      this.lastWriteAt = Date.now();
       idea.votes = res.votes;
-      setVotedIdeaId(idea.id, nextOn);
-      if (nextOn) this.votedIdeaIds.add(String(idea.id));
+      const on = typeof res.on === "boolean" ? res.on : nextOn; // the service's answer wins
+      setVotedIdeaId(idea.id, on);
+      if (on) this.votedIdeaIds.add(String(idea.id));
       else this.votedIdeaIds.delete(String(idea.id));
+      this.authNotice = "";
 
       this.renderBoardList();
       this.renderFeedCard();
@@ -704,11 +772,16 @@ export class SuggestManager {
       const status = (err as { status?: number })?.status;
       if (status === 401 || status === 403) {
         removeStoredToken(idea.product);
-        this.renderBoardAuthBar();
-        this.renderBoardList();
+        this.authNotice = "Your sign-in expired.";
       } else {
-        const msg = err instanceof Error ? err.message : "Vote failed";
-        alert(msg);
+        this.authNotice = err instanceof Error ? err.message : "Vote failed";
+      }
+      this.renderBoardAuthBar();
+      this.renderBoardList();
+      this.renderSimilarInForm();
+      if (!this.suggestBackdrop.hidden) {
+        this.suggestError.textContent = this.authNotice;
+        this.suggestError.style.display = "block";
       }
     } finally {
       btn.disabled = false;

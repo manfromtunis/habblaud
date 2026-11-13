@@ -39,6 +39,7 @@
 
 .pub-card {
   position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%);
+  z-index: 10001; /* above the suggestions card and buttons (suggest.css), which share the bottom on phones */
   display: flex; flex-direction: column; gap: 2px; min-width: 220px; max-width: calc(100vw - 32px);
   background: rgba(18, 21, 29, 0.92); border: 2px solid #f08a3c; border-radius: 6px; padding: 8px 14px; text-align: center;
 }

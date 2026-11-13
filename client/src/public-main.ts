@@ -1,6 +1,7 @@
 // Public Office (office.bakchich.cc): read-only scene fed by office-public.json.
 // Imports nothing from ui/ and never connects the store: no chat, inbox, permissions, rename,
-// settings, timeline or usage, and no request other than the feed.
+// settings, timeline or usage. Requests: the feed, plus the suggestions service under /suggest/
+// (read ideas, send an idea, vote; see ./suggest).
 import '@fontsource/pixelify-sans/400.css';
 import '@fontsource/pixelify-sans/600.css';
 import './public.css';
@@ -88,7 +89,9 @@ function show(feed: PublicFeed): void {
   providers.clear();
   for (const a of merged.agents) providers.set(`factory:agent:${a.id}`, a.provider);
   store.show(publicSnapshot(merged, store.snapshot, Date.now()));
-  const agents = store.snapshot?.agents ?? [];
+  const all = store.snapshot?.agents ?? [];
+  // the agent taking a visitor's suggestion is page-made: it never counts as one of the team
+  const agents = all.filter((a) => !a.id.startsWith('factory:agent:suggest-'));
   const present = agents.length;
   const working = agents.filter((a) => a.status === 'working').length;
   const built = Date.parse(feed.builtAt);
@@ -98,7 +101,7 @@ function show(feed: PublicFeed): void {
     : '● LIVE';
   live.textContent = present ? `${head}  ${present} ${present === 1 ? 'agent' : 'agents'} in the office, ${working} working` : `${head}  nobody in right now`;
   live.classList.toggle('pub-live--stale', stale);
-  empty.hidden = present > 0;
+  empty.hidden = all.length > 0;
   if (cardFor && !store.agent(cardFor)) {
     card.hidden = true; // that agent left the office
     cardFor = null;

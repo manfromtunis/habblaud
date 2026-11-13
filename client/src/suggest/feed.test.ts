@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectLatestIdeas, formatRelativeTime } from "./feed";
+import { selectLatestIdeas, formatRelativeTime, mergePolledIdeas } from "./feed";
 import type { Idea } from "./types";
 
 describe("latest ideas feed logic", () => {
@@ -36,5 +36,22 @@ describe("latest ideas feed logic", () => {
     expect(formatRelativeTime(now - 3 * 86400 * 1000, now)).toBe("3d ago");
     expect(formatRelativeTime(undefined, now)).toBe("recently");
     expect(formatRelativeTime("invalid-date", now)).toBe("recently");
+  });
+});
+
+describe("mergePolledIdeas", () => {
+  const now = Date.parse("2026-11-13T10:00:00Z");
+  const idea = (id: number, at: string): Idea => ({ id, product: "alpha", text: `Idea ${id}`, status: "under-review", votes: 0, created_at: at });
+
+  it("keeps a just-sent own idea that the poll does not list yet", () => {
+    const own = idea(9, "2026-11-13T09:59:30Z");
+    expect(mergePolledIdeas([idea(1, "2026-11-12T10:00:00Z")], [own], now).map((i) => i.id)).toEqual([9, 1]);
+  });
+  it("shows it once when the poll lists it", () => {
+    const own = idea(9, "2026-11-13T09:59:30Z");
+    expect(mergePolledIdeas([idea(9, "2026-11-13T09:59:30Z")], [own], now).map((i) => i.id)).toEqual([9]);
+  });
+  it("drops an own idea the poll still does not list after the grace period", () => {
+    expect(mergePolledIdeas([], [idea(9, "2026-11-13T09:57:00Z")], now)).toEqual([]);
   });
 });

@@ -6,6 +6,7 @@ import {
   getStoredToken,
   saveStoredToken,
   removeStoredToken,
+  signinUrl,
 } from "./token";
 
 function b64url(str: string): string {
@@ -21,11 +22,14 @@ describe("token parsing and validation", () => {
     expect(parsed).toEqual(payload);
   });
 
-  it("handles string exp correctly", () => {
-    const payload = { product: "beta", uid: "u456", exp: 1700000000 };
-    const token = `${b64url(JSON.stringify(payload))}.sig`;
-    const parsed = parseVoteToken(token);
-    expect(parsed).toEqual({ product: "beta", uid: "u456", exp: 1700000000 });
+  it("rejects a string exp, like the service", () => {
+    const payload = { product: "beta", uid: "u456", exp: "1700000000" };
+    expect(parseVoteToken(`${b64url(JSON.stringify(payload))}.sig`)).toBeNull();
+  });
+
+  it("decodes a UTF-8 payload", () => {
+    const payload = { product: "café", uid: "ü1", exp: 1700000000 };
+    expect(parseVoteToken(`${b64url(JSON.stringify(payload))}.sig`)).toEqual(payload);
   });
 
   it("returns null for malformed tokens", () => {
@@ -91,5 +95,30 @@ describe("sessionStorage token helpers", () => {
 
     expect(getStoredToken("alpha", 2000)).toBeNull();
     expect(store.has("suggest-token-alpha")).toBe(false);
+  });
+});
+
+describe("signinUrl", () => {
+  const back = "https://office.example.com/";
+  it("adds the return address to an https link", () => {
+    expect(signinUrl("https://app.example.com/vote", back)).toBe(
+      "https://app.example.com/vote?return=https%3A%2F%2Foffice.example.com%2F"
+    );
+  });
+  it("keeps existing query and fragment in place", () => {
+    expect(signinUrl("https://app.example.com/v?a=1#x", back)).toBe(
+      "https://app.example.com/v?a=1&return=https%3A%2F%2Foffice.example.com%2F#x"
+    );
+  });
+  it("refuses anything but an https URL", () => {
+    for (const bad of ["javascript:alert(1)", "http://app.example.com/v", "data:text/html,x", "//app.example.com", "", 42, null, undefined]) {
+      expect(signinUrl(bad, back)).toBeNull();
+    }
+  });
+});
+
+describe("extractHashToken", () => {
+  it("returns null for a malformed escape instead of throwing", () => {
+    expect(extractHashToken("#suggest-token=%E0%A4%A")).toBeNull();
   });
 });

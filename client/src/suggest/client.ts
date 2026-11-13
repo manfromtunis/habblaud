@@ -1,7 +1,8 @@
 import type { Idea } from "./types";
 
 export interface PostIdeaResult {
-  id: number | string;
+  /** null when the service took the request as a bot's (honeypot filled): nothing was stored. */
+  id: number | string | null;
   public: boolean;
   product: string;
   text: string;
@@ -31,13 +32,14 @@ export async function fetchIdeas(): Promise<Idea[]> {
 export async function postIdea(
   product: string,
   text: string,
-  email?: string
+  email?: string,
+  website = ""
 ): Promise<PostIdeaResult> {
   const body = {
     product,
     text,
     email: email && email.trim() ? email.trim() : undefined,
-    website: "",
+    website,
   };
   const res = await fetch("/suggest/idea", {
     method: "POST",
@@ -45,9 +47,9 @@ export async function postIdea(
     body: JSON.stringify(body),
   });
   if (!res.ok) throw await httpError(res, "Request failed");
-  const data = (await res.json()) as { id: number | string; public?: boolean; product?: string; text?: string; status?: string };
+  const data = (await res.json()) as { id: number | string | null; public?: boolean; product?: string; text?: string; status?: string };
   return {
-    id: data.id,
+    id: data.id ?? null,
     public: data.public !== false,
     product: data.product ?? product,
     text: data.text ?? text,

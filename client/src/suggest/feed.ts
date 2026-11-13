@@ -33,3 +33,19 @@ export function formatRelativeTime(
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
   return `${Math.floor(diffSec / 86400)}d ago`;
 }
+
+/** How long an own idea from a POST reply is kept while ideas.json (cached up to 30 s) does not list it yet. */
+export const OWN_IDEA_GRACE_MS = 120_000;
+
+/**
+ * The polled list plus own public ideas sent in the last OWN_IDEA_GRACE_MS that it does not list yet,
+ * so a stale or cached poll reply never hides the idea the visitor just sent.
+ */
+export function mergePolledIdeas(remote: Idea[], recentOwn: Idea[], nowMs: number = Date.now()): Idea[] {
+  const ids = new Set(remote.map((i) => String(i.id)));
+  const pending = recentOwn.filter((i) => {
+    const sent = i.created_at ? Date.parse(i.created_at) : NaN;
+    return !ids.has(String(i.id)) && Number.isFinite(sent) && nowMs - sent < OWN_IDEA_GRACE_MS;
+  });
+  return [...pending, ...remote];
+}

@@ -7,7 +7,9 @@ export function base64UrlDecode(input: string): string {
     base64 += "=".repeat(4 - pad);
   }
   if (typeof atob === "function") {
-    return atob(base64);
+    // atob gives one char per byte: decode the bytes as UTF-8
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
   }
   const buf = (globalThis as unknown as { Buffer?: { from(s: string, enc: string): { toString(enc: string): string } } }).Buffer;
   if (buf) {
@@ -33,14 +35,10 @@ export function parseVoteToken(token: string): VoteTokenPayload | null {
 
     if (typeof product !== "string" || !product.trim()) return null;
     if (typeof uid !== "string") return null;
-    const expNum = typeof exp === "number" ? exp : Number(exp);
-    if (!Number.isFinite(expNum)) return null;
+    // the service accepts only a JSON number here
+    if (typeof exp !== "number" || !Number.isFinite(exp)) return null;
 
-    return {
-      product: product.trim(),
-      uid,
-      exp: expNum,
-    };
+    return { product: product.trim(), uid, exp };
   } catch {
     return null;
   }
@@ -60,8 +58,11 @@ export function extractHashToken(hash: string): string | null {
   const params = cleaned.split("&");
   for (const p of params) {
     if (p.startsWith("suggest-token=")) {
-      const val = p.slice("suggest-token=".length);
-      return decodeURIComponent(val);
+      try {
+        return decodeURIComponent(p.slice("suggest-token=".length));
+      } catch {
+        return null; // malformed escape
+      }
     }
   }
   return null;
@@ -101,4 +102,18 @@ export function removeStoredToken(product: string): void {
   } catch {
     // ignore
   }
+}
+
+/** The product's sign-in link with returnTo as the return address; null unless voteUrl is an https URL. */
+export function signinUrl(voteUrl: unknown, returnTo: string): string | null {
+  if (typeof voteUrl !== "string") return null;
+  let url: URL;
+  try {
+    url = new URL(voteUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:") return null;
+  url.searchParams.set("return", returnTo);
+  return url.toString();
 }
