@@ -42,11 +42,12 @@ describe('FileTail', () => {
     expect(r.lines).toEqual(['x']);
   });
 
-  it('detecta arquivo substituído (rotação) mesmo maior', () => {
+  it('detecta arquivo substituído (rotação) mesmo maior', async () => {
     writeFileSync(file, 'a\n');
     const t = new FileTail(file);
     t.read();
     rmSync(file);
+    await new Promise((r) => setTimeout(r, 30));
     writeFileSync(file, 'novo-1\nnovo-2\n');
     const r = t.read();
     expect(r.reset).toBe(true);
