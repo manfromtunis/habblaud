@@ -17,7 +17,7 @@ export interface PublicAgent {
 
 export interface PublicFeed {
   builtAt: string;
-  products: Record<string, { name: string }>;
+  products: Record<string, { name: string; voteUrl?: string }>;
   agents: PublicAgent[];
 }
 
