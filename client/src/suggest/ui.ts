@@ -606,7 +606,8 @@ export class SuggestManager {
     const prodName = this.currentFeed.products[product]?.name ?? product;
     this.workCardProductPill.textContent = prodName;
 
-    const similar = findSimilarIdeas(text, product, this.allIdeas);
+    // the visitor's own new idea is already in allIdeas: do not count it as similar to itself
+    const similar = findSimilarIdeas(text, product, this.allIdeas.filter((i) => String(i.id) !== String(ideaId)));
     const similarCount = similar.length;
 
     const snippet = text.length > 70 ? text.slice(0, 68) + "..." : text;
