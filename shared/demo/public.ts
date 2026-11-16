@@ -21,7 +21,7 @@ export interface PublicFeed {
   products: Record<string, { name: string; voteUrl?: string }>;
   projects?: Record<string, { name: string; product: string }>; // absent: one room per product
   agents: PublicAgent[];
-  brand?: { name: string; logo?: string }; // tower roof sign and flag (logo: image URL)
+  brand?: { name: string; logo?: string }; // tower roof sign and flag (logo: an image data URI)
 }
 
 /** Public feed -> the factory response shape: one room per project (or per product), no inbox, nothing to message. */
@@ -45,9 +45,13 @@ export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
   return {
     builtAt: feed.builtAt,
     products: feed.products,
-    projects: projects.length
-      ? projects.map(([id, p]) => ({ id, product: p.product, name: p.name }))
-      : Object.entries(feed.products).map(([key, p]) => ({ id: key, product: key, name: p.name })),
+    // project rooms, then a product's own room (named after the product) when it has none or someone sits there
+    projects: [
+      ...projects.map(([id, p]) => ({ id, product: p.product, name: p.name })),
+      ...Object.entries(feed.products)
+        .filter(([key]) => !projects.length || agents.some((a) => a.project === key && !known.has(key)))
+        .map(([key, p]) => ({ id: key, product: key, name: p.name })),
+    ],
     agents,
     inbox: [],
     answers: {},

@@ -15,6 +15,12 @@ const feed: PublicFeed = {
 describe('publicSnapshot', () => {
   const snap = publicSnapshot(feed, null, Date.parse('2026-11-09T10:00:00Z'));
 
+  it('names a product\'s own room after the product when it also has projects', () => {
+    const withProjects: PublicFeed = { ...feed, projects: { p1: { name: 'Checkout', product: 'bakchich' } } };
+    const rooms = publicSnapshot(withProjects, null, Date.parse('2026-11-09T10:00:00Z')).rooms.map((r) => r.name).sort();
+    expect(rooms).toEqual(['Bakchich', 'Checkout', 'Clip2Earn']);
+  });
+
   it('has one room per product, named by the product name', () => {
     const names = snap.rooms.map((r) => r.name).sort();
     expect(names).toEqual(['Bakchich', 'Clip2Earn']);

@@ -201,6 +201,8 @@ export class Tower {
   private ox = 0; // tower front face left, in canvas pixels
   private oy = 0; // top of the mast
   private raf = 0;
+  private leaving = 0; // the zoom-out timer
+  private still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private last = 0;
   private hover = -1;
   private stars: Array<[number, number, number]> = [];
@@ -211,17 +213,21 @@ export class Tower {
   constructor(private onPick: (index: number) => void) {
     this.el = document.createElement('section');
     this.el.className = 'tower';
+    this.el.setAttribute('aria-label', 'The building, one floor per product');
     this.labels.className = 'tower__labels';
     this.hint.className = 'tower__hint';
     this.hint.textContent = 'Tap a floor to go in';
     this.flag.width = FLAG_W;
     this.flag.height = FLAG_H;
     this.el.append(this.canvas, this.labels, this.hint);
-    addEventListener('resize', () => this.layout());
+    addEventListener('resize', () => {
+      if (this.visible) this.redraw();
+    });
   }
 
+  /** Shown and not on its way out. */
   get visible(): boolean {
-    return !this.el.hidden;
+    return !this.el.hidden && !this.leaving;
   }
 
   show(floors: TowerFloor[]): void {
@@ -237,8 +243,16 @@ export class Tower {
       this.logo.src = this.brand.logo;
     }
     this.paintFlag();
+    clearTimeout(this.leaving);
+    this.leaving = 0;
+    this.redraw();
+  }
+
+  /** New layout, drawn at once (no blank tick); animates unless the visitor asked for reduced motion. */
+  private redraw(): void {
     this.layout();
-    if (!this.raf) this.raf = requestAnimationFrame((t) => this.frame(t));
+    this.draw(this.still ? 0 : performance.now() / 1000);
+    if (!this.still && !this.raf) this.raf = requestAnimationFrame((t) => this.frame(t));
   }
 
   /** Zooms toward the picked floor and fades out. */
@@ -246,7 +260,9 @@ export class Tower {
     const b = this.labels.children[index] as HTMLElement | undefined;
     if (b) this.el.style.transformOrigin = `${(this.ox + BODY_W / 2) * this.scale}px ${b.offsetTop}px`;
     this.el.classList.add('tower--leaving');
-    setTimeout(() => {
+    clearTimeout(this.leaving);
+    this.leaving = window.setTimeout(() => {
+      this.leaving = 0;
       this.el.hidden = true;
       this.el.classList.remove('tower--leaving');
       cancelAnimationFrame(this.raf);
@@ -258,7 +274,7 @@ export class Tower {
     return !!this.logo?.complete && this.logo.naturalWidth > 0;
   }
 
-  /** The flag cloth: brand blue with the logo, drawn once and waved column by column each frame. */
+  /** The flag cloth: blue with the logo, drawn once and waved column by column each frame. */
   private paintFlag(): void {
     const f = this.flag.getContext('2d')!;
     f.fillStyle = '#4670cf';
@@ -282,8 +298,8 @@ export class Tower {
     const fitH = (vh - (narrow ? 130 : 70)) / (this.height() + STREET_H);
     const fitW = (vw - labelW - 24) / (BODY_W + DEPTH);
     const fit = Math.min(fitH, fitW);
-    // whole-pixel zoom keeps pixels even; below 2x (phones) quarter steps keep the tower readable
-    this.scale = fit >= 2 ? Math.floor(fit) : Math.max(1, Math.floor(fit * 4) / 4);
+    // whole-pixel zoom keeps pixels even; below 2x (phones, very tall towers) quarter steps keep it all on screen
+    this.scale = fit >= 2 ? Math.floor(fit) : Math.max(0.5, Math.floor(fit * 4) / 4);
     const s = this.scale;
     this.canvas.width = Math.ceil(vw / s);
     this.canvas.height = Math.ceil(vh / s);
@@ -359,8 +375,8 @@ export class Tower {
       if (f.working) count.classList.add('tower__count--busy');
       b.append(num, name, count);
       b.title = `${f.name}: ${f.agents} ${f.agents === 1 ? 'agent' : 'agents'}, ${f.working} working`;
-      b.onmouseenter = () => (this.hover = i);
-      b.onmouseleave = () => (this.hover = -1);
+      b.onmouseenter = b.onfocus = () => this.setHover(i);
+      b.onmouseleave = b.onblur = () => this.setHover(-1);
       b.onclick = () => this.onPick(i);
       this.labels.append(b);
     });
@@ -375,9 +391,15 @@ export class Tower {
       if (i >= 0) this.onPick(i);
     };
     this.canvas.onmousemove = (e) => {
-      this.hover = floorAt(e);
+      this.setHover(floorAt(e));
       this.canvas.style.cursor = this.hover >= 0 ? 'pointer' : 'default';
     };
+  }
+
+  private setHover(i: number): void {
+    if (i === this.hover) return;
+    this.hover = i;
+    if (this.still) this.draw(0); // no loop to pick it up
   }
 
   /** Top of floor i (floor 1 sits on the lobby). */

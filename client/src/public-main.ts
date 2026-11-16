@@ -10,7 +10,8 @@ import { createWorld } from './world';
 import { DEFAULT_WORLD_OPTIONS } from './world/api';
 import { publicSnapshot, type PublicFeed } from '../../shared/demo/public';
 import { SuggestManager, mergeSyntheticAgent } from './suggest';
-import { Tower, type TowerRoom } from './tower';
+import { Tower } from './tower';
+import { floorFeed, floorFromHash, floorsOf, type Floor } from './floors';
 
 const POLL_MS = 300_000;
 const STALE_MS = 30 * 60_000; // two missed builds: stop claiming LIVE
@@ -90,47 +91,13 @@ const suggestManager = new SuggestManager({
 
 let first = true;
 
-// Tower: one floor per product, its project rooms side by side (ROOMS_PER_FLOOR at most, then the
-// product takes the next floor up). The panel switches floors; only the shown floor is simulated.
-const ROOMS_PER_FLOOR = 8;
-interface Floor { key: string; product: string; name: string; projects: string[]; rooms: TowerRoom[]; agents: number; working: number }
-let floorKey = decodeURIComponent(location.hash.match(/f=([^&]+)/)?.[1] ?? '');
+// Tower: one floor per product (client/src/floors.ts). The panel switches floors; only the shown floor is simulated.
+let floorKey = floorFromHash(location.hash);
 let shownFloor = '';
+let suggestionSeen = ''; // the visitor's suggestion agent we already took them to
 const floorNav = el('nav', 'pub-floors');
 floorNav.setAttribute('aria-label', 'Floors');
 uiContainer.append(floorNav);
-
-function floorsOf(feed: PublicFeed): Floor[] {
-  const out: Floor[] = [];
-  for (const [product, p] of Object.entries(feed.products)) {
-    const agents = feed.agents.filter((a) => a.product === product);
-    const busy = (id: string) => agents.filter((a) => a.project === id).length;
-    const ids = Object.entries(feed.projects ?? {}).filter(([, q]) => q.product === product).map(([id]) => id)
-      .sort((a, b) => busy(b) - busy(a)); // busy rooms on the product's first floor
-    const chunks: string[][] = [];
-    for (let i = 0; i < Math.max(ids.length, 1); i += ROOMS_PER_FLOOR) chunks.push(ids.slice(i, i + ROOMS_PER_FLOOR));
-    chunks.forEach((projects, i) => {
-      const here = agents.filter((a) => (a.project && projects.includes(a.project)) || (i === 0 && !(a.project && ids.includes(a.project))));
-      const count = (list: typeof agents): TowerRoom => ({ agents: list.length, working: list.filter((a) => a.state === 'running').length });
-      const rooms = projects.map((id) => count(here.filter((a) => a.project === id)));
-      const loose = here.filter((a) => !(a.project && projects.includes(a.project)));
-      if (loose.length || !rooms.length) rooms.push(count(loose)); // the product's own room
-      out.push({ key: i ? `${product}-${i + 1}` : product, product, name: i ? `${p.name} ${i + 1}` : p.name, projects, rooms, ...count(here) });
-    });
-  }
-  return out;
-}
-
-function floorFeed(feed: PublicFeed, f: Floor): PublicFeed {
-  const inFloor = (a: PublicFeed['agents'][number]) => a.product === f.product &&
-    (a.project && feed.projects?.[a.project] ? f.projects.includes(a.project) : !f.key.includes('-'));
-  return {
-    ...feed,
-    products: { [f.product]: feed.products[f.product] },
-    projects: Object.fromEntries(f.projects.map((id) => [id, feed.projects![id]])),
-    agents: feed.agents.filter(inFloor),
-  };
-}
 
 // Opening view: the whole tower. A link with #f=<floor> skips it.
 let floorList: Floor[] = [];
@@ -181,6 +148,17 @@ function show(feed: PublicFeed): void {
   const floors = floorsOf(feed);
   if (!floors.some((f) => f.key === floorKey)) {
     floorKey = [...floors].sort((a, b) => b.working - a.working || b.agents - a.agents)[0]?.key ?? '';
+  }
+  // the visitor's suggestion agent walks into its product's first floor: take them there, once
+  const suggestion = suggestManager.getSyntheticAgent();
+  if (suggestion && suggestion.id !== suggestionSeen && floors.some((f) => f.key === suggestion.product)) {
+    suggestionSeen = suggestion.id;
+    floorKey = suggestion.product;
+    history.replaceState(null, '', `#f=${encodeURIComponent(floorKey)}`);
+    if (tower.visible) {
+      tower.leave(floors.findIndex((f) => f.key === floorKey));
+      floorNav.hidden = false;
+    }
   }
   tower.brand = feed.brand ?? null;
   renderFloors(floors);
