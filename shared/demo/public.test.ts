@@ -15,6 +15,12 @@ const feed: PublicFeed = {
 describe('publicSnapshot', () => {
   const snap = publicSnapshot(feed, null, Date.parse('2026-11-09T10:00:00Z'));
 
+  it('names a product\'s own room after the product when it also has projects', () => {
+    const withProjects: PublicFeed = { ...feed, projects: { p1: { name: 'Checkout', product: 'bakchich' } } };
+    const rooms = publicSnapshot(withProjects, null, Date.parse('2026-11-09T10:00:00Z')).rooms.map((r) => r.name).sort();
+    expect(rooms).toEqual(['Bakchich', 'Checkout', 'Clip2Earn']);
+  });
+
   it('has one room per product, named by the product name', () => {
     const names = snap.rooms.map((r) => r.name).sort();
     expect(names).toEqual(['Bakchich', 'Clip2Earn']);
@@ -95,5 +101,19 @@ describe('publicSnapshot', () => {
     const snap = publicSnapshot({ ...feed, agents: [...feed.agents, stray] }, null, Date.now());
     expect(snap.agents.some((a) => a.id.endsWith('dddd000001'))).toBe(false);
     expect(snap.rooms.some((r) => r.name.includes('secret-project'))).toBe(false);
+  });
+});
+
+describe('publicToFactory own rooms', () => {
+  it('keeps a product\'s own room apart from a project that has the product\'s key as its id', () => {
+    const f: PublicFeed = {
+      builtAt: '', products: { acme: { name: 'Acme' } }, projects: { acme: { name: 'Checkout', product: 'acme' } },
+      agents: [
+        { id: 'c1', parent: null, product: 'acme', project: 'acme', state: 'running', provider: 'Claude', label: 'x' },
+        { id: 'c2', parent: null, product: 'acme', project: null, state: 'running', provider: 'Claude', label: 'x' },
+      ],
+    };
+    const rooms = publicSnapshot(f, null, 0).rooms.map((r) => r.name).sort();
+    expect(rooms).toEqual(['Acme', 'Checkout']);
   });
 });

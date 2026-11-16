@@ -229,7 +229,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: WorldStore): World
   });
 
   // medições de texto em cache: refaz quando alguma fonte termina de carregar
-  if (document.fonts) document.fonts.addEventListener?.('loadingdone', () => overlay.resetCaches());
+  if (document.fonts) document.fonts.addEventListener?.('loadingdone', () => overlay.resetCaches(), { signal: abort.signal });
 
   // ------------------------------------------------------------------ laço
 
