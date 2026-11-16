@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PublicAgent, PublicFeed } from '../../shared/demo/public';
 import { floorFeed, floorFromHash, floorsOf, ROOMS_PER_FLOOR } from './floors';
+import { COLS } from './tower';
 
 let n = 0;
 const agent = (product: string, project: string | null, state: PublicAgent['state'] = 'running'): PublicAgent =>
@@ -34,7 +35,7 @@ describe('floorsOf', () => {
     };
     const floors = floorsOf(feed);
     expect(floors.map((f) => f.key)).toEqual(['app', 'app~2', 'app~3']);
-    for (const f of floors) expect(f.rooms.length).toBeLessThanOrEqual(ROOMS_PER_FLOOR + 1);
+    for (const f of floors) expect(f.rooms.length).toBeLessThanOrEqual(COLS);
     expect(floors[0]!.rooms.at(-1)).toEqual({ agents: 1, working: 1 }); // the product's own room
   });
 

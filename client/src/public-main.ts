@@ -86,7 +86,12 @@ let currentFeed: PublicFeed = { builtAt: '', products: {}, agents: [] };
 const suggestManager = new SuggestManager({
   container: uiContainer,
   onSyntheticAgentUpdate: () => show(currentFeed),
-  onFocusAgent: (agentId: string) => world.focusAgent(agentId, { follow: true }),
+  onFocusAgent: (agentId: string) => {
+    world.focusAgent(agentId, { follow: true });
+    // after a floor jump the new world frames the whole floor on its first frame, dropping the
+    // follow: focus again once that frame has run
+    requestAnimationFrame(() => requestAnimationFrame(() => world.focusAgent(agentId, { follow: true })));
+  },
 });
 
 let first = true;
@@ -151,8 +156,10 @@ function show(feed: PublicFeed): void {
   }
   // the visitor's suggestion agent walks into its product's first floor: take them there, once
   const suggestion = suggestManager.getSyntheticAgent();
+  let jumped = false;
   if (suggestion && suggestion.id !== suggestionSeen && floors.some((f) => f.key === suggestion.product)) {
     suggestionSeen = suggestion.id;
+    jumped = true;
     floorKey = suggestion.product;
     history.replaceState(null, '', `#f=${encodeURIComponent(floorKey)}`);
     if (tower.visible) {
@@ -177,7 +184,7 @@ function show(feed: PublicFeed): void {
     setupWorld();
   }
   store.show(publicSnapshot(merged, moved ? null : store.snapshot, Date.now()));
-  if (moved && !first) requestAnimationFrame(() => world.overview());
+  if (moved && !first && !jumped) requestAnimationFrame(() => world.overview()); // a jump keeps the camera on the suggestion agent
   shownFloor = floorKey;
   const all = store.snapshot?.agents ?? [];
   // whole-building counts from the feed: the agent taking a visitor's suggestion is page-made, never counted

@@ -1,10 +1,10 @@
 // Tower floors: one floor per product, its project rooms side by side, then the product takes the
 // next floor up. Pure, so the page and the tests share it.
 import type { PublicFeed } from '../../shared/demo/public';
-import type { TowerRoom } from './tower';
+import { COLS, type TowerRoom } from './tower';
 
 /** Projects per floor: with the product's own room that is the tower's 8 windows. */
-export const ROOMS_PER_FLOOR = 7;
+export const ROOMS_PER_FLOOR = COLS - 1;
 
 export interface Floor {
   key: string; // the product key on its first floor, `${product}~${n}` above it

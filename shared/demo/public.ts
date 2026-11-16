@@ -24,6 +24,9 @@ export interface PublicFeed {
   brand?: { name: string; logo?: string }; // tower roof sign and flag (logo: an image data URI)
 }
 
+/** A product's own room: an id no project id can take (project ids are slugs). */
+const ownRoom = (product: string) => `${product}#own`;
+
 /** Public feed -> the factory response shape: one room per project (or per product), no inbox, nothing to message. */
 export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
   const projects = Object.entries(feed.projects ?? {}).filter(([, p]) => Object.hasOwn(feed.products, p.product));
@@ -32,7 +35,7 @@ export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
     hc: a.id,
     parent: a.parent ?? undefined,
     product: a.product,
-    project: a.project && known.get(a.project)?.product === a.product ? a.project : a.product,
+    project: a.project && known.get(a.project)?.product === a.product ? a.project : ownRoom(a.product),
     state: a.state,
     provider: a.provider,
     since: a.since ?? undefined,
@@ -49,8 +52,8 @@ export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
     projects: [
       ...projects.map(([id, p]) => ({ id, product: p.product, name: p.name })),
       ...Object.entries(feed.products)
-        .filter(([key]) => !projects.length || agents.some((a) => a.project === key && !known.has(key)))
-        .map(([key, p]) => ({ id: key, product: key, name: p.name })),
+        .filter(([key]) => !projects.length || agents.some((a) => a.project === ownRoom(key)))
+        .map(([key, p]) => ({ id: ownRoom(key), product: key, name: p.name, path: `~/code/${key}/` })),
     ],
     agents,
     inbox: [],

@@ -103,3 +103,17 @@ describe('publicSnapshot', () => {
     expect(snap.rooms.some((r) => r.name.includes('secret-project'))).toBe(false);
   });
 });
+
+describe('publicToFactory own rooms', () => {
+  it('keeps a product\'s own room apart from a project that has the product\'s key as its id', () => {
+    const f: PublicFeed = {
+      builtAt: '', products: { acme: { name: 'Acme' } }, projects: { acme: { name: 'Checkout', product: 'acme' } },
+      agents: [
+        { id: 'c1', parent: null, product: 'acme', project: 'acme', state: 'running', provider: 'Claude', label: 'x' },
+        { id: 'c2', parent: null, product: 'acme', project: null, state: 'running', provider: 'Claude', label: 'x' },
+      ],
+    };
+    const rooms = publicSnapshot(f, null, 0).rooms.map((r) => r.name).sort();
+    expect(rooms).toEqual(['Acme', 'Checkout']);
+  });
+});

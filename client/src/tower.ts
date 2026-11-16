@@ -15,7 +15,7 @@ const WIN_W = 12;
 const WIN_H = 13;
 const GAP = 4;
 const FLOOR_H = 20;
-const COLS = 8;
+export const COLS = 8; // windows per floor
 const SHAFT = 16;
 const BODY_W = COLS * (WIN_W + GAP) + GAP + SHAFT;
 const DEPTH = 32; // side face width; it rises DEPTH/2 towards the back
@@ -239,6 +239,7 @@ export class Tower {
       this.logo.onload = () => {
         this.paintFlag();
         this.key = '';
+        if (this.still && this.visible) this.draw(0); // no loop to pick it up
       };
       this.logo.src = this.brand.logo;
     }
