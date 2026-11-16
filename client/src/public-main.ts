@@ -89,7 +89,7 @@ const suggestManager = new SuggestManager({
   onFocusAgent: (agentId: string) => {
     world.focusAgent(agentId, { follow: true });
     // after a floor jump the new world frames the whole floor on its first frame, dropping the
-    // follow: focus again once that frame has run
+    // follow: focus again once that frame has run (harmless when nothing jumped)
     requestAnimationFrame(() => requestAnimationFrame(() => world.focusAgent(agentId, { follow: true })));
   },
 });

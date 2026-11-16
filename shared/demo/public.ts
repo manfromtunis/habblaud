@@ -24,13 +24,12 @@ export interface PublicFeed {
   brand?: { name: string; logo?: string }; // tower roof sign and flag (logo: an image data URI)
 }
 
-/** A product's own room: an id no project id can take (project ids are slugs). */
-const ownRoom = (product: string) => `${product}#own`;
-
 /** Public feed -> the factory response shape: one room per project (or per product), no inbox, nothing to message. */
 export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
   const projects = Object.entries(feed.projects ?? {}).filter(([, p]) => Object.hasOwn(feed.products, p.product));
   const known = new Map(projects);
+  // a product's own room keeps the product key as its id (the id seeds the room's look) unless a project took it
+  const ownRoom = (product: string) => (known.has(product) ? `${product}#own` : product);
   const agents: FactoryApiAgent[] = feed.agents.filter((a) => Object.hasOwn(feed.products, a.product)).map((a) => ({
     hc: a.id,
     parent: a.parent ?? undefined,
