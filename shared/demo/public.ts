@@ -13,21 +13,26 @@ export interface PublicAgent {
   provider: string;
   since?: string | null;
   label: string;
+  project?: string | null; // a key of PublicFeed.projects; absent or unknown: the product's room
 }
 
 export interface PublicFeed {
   builtAt: string;
   products: Record<string, { name: string; voteUrl?: string }>;
+  projects?: Record<string, { name: string; product: string }>; // absent: one room per product
   agents: PublicAgent[];
+  brand?: { name: string; logo?: string }; // tower roof sign and flag (logo: image URL)
 }
 
-/** Public feed -> the factory response shape: one room per product, no inbox, nothing to message. */
+/** Public feed -> the factory response shape: one room per project (or per product), no inbox, nothing to message. */
 export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
+  const projects = Object.entries(feed.projects ?? {}).filter(([, p]) => Object.hasOwn(feed.products, p.product));
+  const known = new Map(projects);
   const agents: FactoryApiAgent[] = feed.agents.filter((a) => Object.hasOwn(feed.products, a.product)).map((a) => ({
     hc: a.id,
     parent: a.parent ?? undefined,
     product: a.product,
-    project: a.product,
+    project: a.project && known.get(a.project)?.product === a.product ? a.project : a.product,
     state: a.state,
     provider: a.provider,
     since: a.since ?? undefined,
@@ -40,7 +45,9 @@ export function publicToFactory(feed: PublicFeed): FactoryOfficeResponse {
   return {
     builtAt: feed.builtAt,
     products: feed.products,
-    projects: Object.entries(feed.products).map(([key, p]) => ({ id: key, product: key, name: p.name })),
+    projects: projects.length
+      ? projects.map(([id, p]) => ({ id, product: p.product, name: p.name }))
+      : Object.entries(feed.products).map(([key, p]) => ({ id: key, product: key, name: p.name })),
     agents,
     inbox: [],
     answers: {},
