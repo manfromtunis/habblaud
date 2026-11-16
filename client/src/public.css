@@ -118,7 +118,7 @@
   .tower__floor { font-size: 12px; gap: 4px; padding: 1px 6px 1px 2px; }
   .tower__n { width: 16px; height: 16px; font-size: 11px; }
   .tower__name { display: none; }
-  .tower__hint { bottom: auto; top: 104px; }
+  .tower__hint { top: 104px; }
   .pub-floor--tower { padding: 2px 8px; }
 }
 @media (prefers-reduced-motion: reduce) {

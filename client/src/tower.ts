@@ -205,6 +205,7 @@ export class Tower {
   private hover = -1;
   private stars: Array<[number, number, number]> = [];
   private blocks: Block[] = [];
+  private pads: Block[] = []; // front-row roofs: where rockets launch
   private trees: number[] = [];
 
   constructor(private onPick: (index: number) => void) {
@@ -335,6 +336,7 @@ export class Tower {
     row(true, 3);
     row(false, 17);
     this.blocks = blocks;
+    this.pads = blocks.filter((b) => !b.back);
     this.trees = [];
     for (let x = 8; x < W; x += 22 + Math.floor(hash(x) * 14)) if (Math.abs(x - (this.ox + DOOR)) > 30) this.trees.push(x);
     // labels: one card per floor, top floor first
@@ -435,6 +437,10 @@ export class Tower {
       c.globalAlpha = 1;
     };
     /** A soft parallelogram on the ground, leaning away from the sun. */
+    // a sign's neon reflected on the wet road
+    const wet = (from: number, to: number, col: string) => alpha(dark * 0.22, () => {
+      for (let rx = from; rx < to; rx += 3) px(rx, ground + 14, 1, 6 + Math.floor(hash(rx) * 12), col);
+    });
     const shadow = (x: number, w: number, len: number) => alpha(0.2, () => {
       for (let j = 0; j < len; j++) px(x + (sdir > 0 ? j * 2 : -j * 2), ground + j, w, 1, '#0a0a32');
     });
@@ -463,7 +469,7 @@ export class Tower {
     }
 
     // ---- neighbours ----
-    const windows = (b: Block, x: number, top: number, w: number, bottom: number, d: number) => {
+    const windows = (b: Block, x: number, top: number, w: number, bottom: number) => {
       const fr = b.back ? L.haze : L.tone;
       const face = rgb(b.face);
       const n = Math.floor((w - 3) / 8);
@@ -481,7 +487,6 @@ export class Tower {
         }
         if (!b.back) for (const j of [3, 9]) skew(x + w, j, wy, 4, 6, lit && hash(wy * 3 + j + b.seed) > 0.5 ? '#d9a84f' : L.side(b.back ? mix(rgb('#5f9fd0'), L.low, 0.4) : '#5f9fd0'));
       }
-      void d;
     };
     const racks = (x: number, base: number, n: number) => {
       for (let k = 0; k < n; k++) {
@@ -529,9 +534,7 @@ export class Tower {
       px(bx + bw - 1, by, 1, bh, col);
       text(word, cx, by + 3, col, k, col);
       alpha(0.1 + dark * 0.16, () => px(bx - 2, by - 2, bw + 4, bh + 4, col));
-      alpha(dark * 0.22, () => {
-        for (let rx = bx + 2; rx < bx + bw - 2; rx += 3) px(rx, ground + 14, 1, 6 + Math.floor(hash(rx) * 12), col); // neon on the wet road
-      });
+      wet(bx + 2, bx + bw - 2, col);
     };
     const roofTop = (b: Block, x: number, y: number, w: number) => {
       const base = y - 4;
@@ -567,15 +570,13 @@ export class Tower {
       px(x + 3, y, w - 6, 11, L.tone('#161830'));
       px(x + 3, y + 10, w - 6, 1, b.signCol!);
       text(b.sign!, x + w / 2, y + 3, b.signCol!, 1, b.signCol);
-      alpha(dark * 0.22, () => {
-        for (let rx = x + 4; rx < x + w - 4; rx += 3) px(rx, ground + 14, 1, 6 + Math.floor(hash(rx) * 12), b.signCol!);
-      });
+      wet(x + 4, x + w - 4, b.signCol!);
     };
     const drawBlock = (b: Block) => {
       const y = ground - b.h;
       if (b.back) {
         box(b.x, y, b.w, b.h, b.face, 10, true);
-        windows(b, b.x, y + 6, b.w, ground - 4, 10);
+        windows(b, b.x, y + 6, b.w, ground - 4);
         if (hash(b.seed) > 0.5) {
           px(b.x + b.w / 2 + 3, y - 18, 1, 14, L.haze('#7d8496'));
           led(b.x + b.w / 2 + 3, y - 19, '#ff4a4a', '#7a2a2a');
@@ -587,7 +588,7 @@ export class Tower {
         box(b.x, y, b.w, b.h, b.face, BD);
         const banded = !!b.sign && !b.board;
         if (banded) band(b, b.x, y + 5, b.w);
-        windows(b, b.x, y + (banded ? 20 : 6), b.w, ground - 14, BD);
+        windows(b, b.x, y + (banded ? 20 : 6), b.w, ground - 14);
         // shop front
         px(b.x + 3, ground - 12, b.w - 6, 12, lit ? '#ffe1a0' : L.tone('#9fdcf5'));
         px(b.x + 3, ground - 12, b.w - 6, 1, L.tone(mix(rgb(b.face), SHADE, 0.4)));
@@ -598,13 +599,13 @@ export class Tower {
         const y1 = ground - h1;
         box(b.x, y1, b.w, h1, b.face, BD);
         if (b.sign) band(b, b.x, y1 + 5, b.w);
-        windows(b, b.x, y1 + (b.sign ? 20 : 6), b.w, ground - 4, BD);
+        windows(b, b.x, y1 + (b.sign ? 20 : 6), b.w, ground - 4);
         const ux = b.x + 8;
         const uw = b.w - 12;
         const uy = y1 - 3 - (b.h - h1);
         const top = css(mix(rgb(b.face), WHITE, 0.25));
         box(ux, uy, uw, b.h - h1, top, 10);
-        windows({ ...b, face: top, back: true }, ux, uy + 5, uw, y1 - 5, 10);
+        windows({ ...b, face: top, back: true }, ux, uy + 5, uw, y1 - 5);
         px(ux, uy, uw, 2, L.tone(mix(rgb(b.face), SHADE, 0.25)));
         roofTop({ ...b, board: false }, ux - 3, uy + 1, uw);
       } else if (b.kind === 'glass') {
@@ -658,7 +659,7 @@ export class Tower {
         // shop: brick, big front window under a striped awning, billboard on the roof
         box(b.x, y, b.w, b.h, b.face, BD);
         for (let by = y + 4; by < ground - 20; by += 4) px(b.x + 1, by, b.w - 2, 1, L.tone(mix(rgb(b.face), SHADE, 0.16)));
-        windows(b, b.x, y + 6, b.w, ground - 22, BD);
+        windows(b, b.x, y + 6, b.w, ground - 22);
         px(b.x + 3, ground - 15, b.w - 6, 15, lit ? '#ffe1a0' : L.tone('#a6e1f7'));
         px(b.x + 4, ground - 14, 2, 10, lit ? '#fff3cf' : L.tone('#e3f6ff'));
         for (let mx = b.x + 3 + Math.floor((b.w - 6) / 3); mx < b.x + b.w - 4; mx += Math.floor((b.w - 6) / 3)) px(mx, ground - 15, 1, 15, L.tone('#3a3f55'));
@@ -721,8 +722,10 @@ export class Tower {
     // and a lit ledge, the same on the side face (same materials as the crown and the lobby)
     for (let i = 0; i < n; i++) {
       const top = this.floorY(i);
-      for (let kk = 0; kk <= COLS; kk++) px(x0 + kk * (WIN_W + GAP), top, GAP, FLOOR_H, L.tone('#2b3478'));
-      for (let kk = 0; kk <= COLS; kk++) px(x0 + kk * (WIN_W + GAP), top, 1, FLOOR_H, L.tone('#4752a6'));
+      for (let kk = 0; kk <= COLS; kk++) {
+        px(x0 + kk * (WIN_W + GAP), top, GAP, FLOOR_H, L.tone('#2b3478'));
+        px(x0 + kk * (WIN_W + GAP), top, 1, FLOOR_H, L.tone('#4752a6'));
+      }
       for (let j = 1; j < DEPTH; j += 7) skew(edge, j, top, 2, FLOOR_H, L.side('#2b3478'));
       const y = top + FLOOR_H - 3;
       px(x0, top, BODY_W - SHAFT, 2, L.tone('#2b3478'));
@@ -871,8 +874,9 @@ export class Tower {
     const L = this.light;
     const { dark, low: skyLow } = L;
     const sh = L.tone;
-    const { px, disc, text, skew } = pen(c);
-    const box = (x: number, y: number, w: number, hh: number, face: Col, d: number) => pen(c).box(L, x, y, w, hh, face, d);
+    const P = pen(c);
+    const { px, disc, text, skew } = P;
+    const box = (x: number, y: number, w: number, hh: number, face: Col, d: number) => P.box(L, x, y, w, hh, face, d);
     const ground = this.oy + this.height();
     const tick = (rate: number, seed = 0) => Math.floor(t * rate + seed);
 
@@ -967,7 +971,7 @@ export class Tower {
     for (const [x, y, on, off, seed] of this.leds) px(x, y, 1, 1, hash(seed * 7 + tick(1.5 + (seed % 3))) > 0.42 ? on : off);
 
     // rockets: lift off from a front-row roof, flame and a smoke trail
-    const pads = this.blocks.filter((b) => !b.back);
+    const pads = this.pads;
     if (pads.length) {
       const period = 13;
       const cyc = Math.floor(t / period);
@@ -1094,9 +1098,10 @@ export class Tower {
     // flag
     const poleTop = crownY - 46;
     for (let col = 0; col < FLAG_W; col++) {
-      const dy = Math.sin(t * 5 - col * 0.4) * (col / FLAG_W) * 2.6;
+      const wave = Math.sin(t * 5 - col * 0.4);
+      const dy = wave * (col / FLAG_W) * 2.6;
       c.drawImage(this.flag, col, 0, 1, FLAG_H, x0 + 14 + col, Math.round(poleTop + 1 + dy), 1, FLAG_H);
-      if (Math.sin(t * 5 - col * 0.4) > 0.5) {
+      if (wave > 0.5) {
         c.globalAlpha = 0.12;
         px(x0 + 14 + col, Math.round(poleTop + 1 + dy), 1, FLAG_H, '#ffffff');
         c.globalAlpha = 1;
